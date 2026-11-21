@@ -167,6 +167,26 @@
     return N / g.A_tot + sigmaBendingAt(x, y, Mx, My, g);
   }
 
+  /** Neutral axis (sigma = 0) in the CENTROIDAL axes x, y:
+   *      k2 x + k3 y + N/A = 0   ->   y = m x + theta,   m = tan(beta)
+   *  delta (returned as `theta`) = intercept with the y axis [mm]; beta = angle with the x axis
+   *  (counter-clockwise if positive, same convention as the principal axes).
+   *  Mx, My in N*mm, N in N. */
+  function neutralAxis(Mx, My, N, g) {
+    const Delta = g.Ix * g.Iy - g.Ixy * g.Ixy;
+    const k2 = -(g.Ix * My + g.Ixy * Mx) / Delta;
+    const k3 = (g.Iy * Mx + g.Ixy * My) / Delta;
+    const nA = N / g.A_tot;
+    if (Math.abs(k2) <= 1e-12 && Math.abs(k3) <= 1e-12) {
+      return { defined: false, reason: Math.abs(nA) > 1e-12 ? "axial force only (uniform stress)" : "no internal action" };
+    }
+    if (Math.abs(k3) <= 1e-9 * Math.abs(k2)) {
+      return { defined: true, vertical: true, xIntercept: -nA / k2, betaDeg: 90, k2, k3 };
+    }
+    const m = -k2 / k3, theta = -nA / k3;
+    return { defined: true, vertical: false, m, theta, betaDeg: Math.atan(m) * 180 / Math.PI, k2, k3 };
+  }
+
   function computeStressExtremes(rects, Mx, My, N, g) {
     let sigmaMax = -Infinity, sigmaMin = Infinity, locMax = null, locMin = null;
     for (const [x0, y0, b, h] of rects) {
@@ -521,6 +541,70 @@
       const m = momentArrow([g.x_bar, g.y_bar], phi, Lref, "purple");
       data.push(m.trace);
       annotations = annotations.concat(m.annotations);
+
+      // angle beta between the centroidal x axis and the neutral axis: an arc
+      // with an arrowhead, drawn where the neutral axis crosses the x axis
+      // when that point is on screen (otherwise at the centroid, against a
+      // dotted line through the centroid parallel to the neutral axis)
+      const na = neutralAxis(Mx, My, N, g);
+      if (na.defined) {
+        const beta = na.betaDeg * Math.PI / 180;
+        // radius larger than the moment arrow (0.18 of the span) so they do not hide each other
+        const R = 0.26 * Math.max(xmax - xmin, ymax - ymin, 1);
+        const xlo = Math.min(xr[0], xr[1]), xhi = Math.max(xr[0], xr[1]);
+        const ylo = Math.min(yr[0], yr[1]), yhi = Math.max(yr[0], yr[1]);
+        const inView = (px, py) => px - R >= xlo && px + 1.6 * R <= xhi && py - R >= ylo && py + R <= yhi;
+        let cx = g.x_bar, cy = g.y_bar, parallelHelper = true;
+        const xCross = na.vertical ? na.xIntercept : (Math.abs(na.m) > 1e-9 ? -na.theta / na.m : null);
+        if (xCross !== null && inView(g.x_bar + xCross, g.y_bar)) {
+          cx = g.x_bar + xCross; cy = g.y_bar; parallelHelper = false;
+        }
+        const green = "green";
+        // start of the angle: the x axis
+        data.push({
+          type: "scatter", x: [cx, cx + 1.3 * R], y: [cy, cy], mode: "lines",
+          line: { color: "rgba(0,100,0,0.6)", dash: "dot", width: 1.5 }, hoverinfo: "skip", showlegend: false,
+        });
+        const label = `β = ${(Math.abs(na.betaDeg) < 5e-5 ? 0 : na.betaDeg).toFixed(2)}°`;
+        if (Math.abs(beta) < 1e-6) {
+          annotations.push({
+            x: cx + 1.35 * R, y: cy, text: label, showarrow: false, font: { size: 13, color: green },
+            bgcolor: "rgba(255,255,255,0.85)", xanchor: "left", xshift: 4, yshift: 14,
+          });
+        } else {
+          if (parallelHelper) {
+            const hp = infiniteLinePoints([cx, cy], [Math.cos(beta), Math.sin(beta)], xr, yr);
+            if (hp) {
+              data.push({
+                type: "scatter", x: hp[0], y: hp[1], mode: "lines",
+                line: { color: "rgba(0,100,0,0.6)", dash: "dot", width: 1.5 }, hoverinfo: "skip", showlegend: false,
+              });
+            }
+          }
+          const arcX = [], arcY = [];
+          for (let i = 0; i <= 40; i++) {
+            const ph = beta * i / 40;
+            arcX.push(cx + R * Math.cos(ph)); arcY.push(cy + R * Math.sin(ph));
+          }
+          data.push({
+            type: "scatter", x: arcX, y: arcY, mode: "lines",
+            line: { color: green, width: 2.5 }, hoverinfo: "skip", showlegend: false,
+          });
+          const pe = beta, pt = beta * 0.88;         // arrowhead at the end of the arc, along its tangent
+          annotations.push({
+            x: cx + R * Math.cos(pe), y: cy + R * Math.sin(pe),
+            ax: cx + R * Math.cos(pt), ay: cy + R * Math.sin(pt), axref: "x", ayref: "y", xref: "x", yref: "y",
+            showarrow: true, arrowhead: 2, arrowsize: 1.3, arrowwidth: 2.5, arrowcolor: green, text: "",
+          });
+          const pm = beta / 2;
+          // small angles: push the label away from the two lines it sits between
+          const away = Math.abs(na.betaDeg) < 25 ? (beta >= 0 ? 14 : -14) : 0;
+          annotations.push({
+            x: cx + 1.25 * R * Math.cos(pm), y: cy + 1.25 * R * Math.sin(pm), text: label, showarrow: false,
+            font: { size: 13, color: green }, bgcolor: "rgba(255,255,255,0.85)", yshift: away,
+          });
+        }
+      }
 
       if (ribbon) {
         const r = sigmaRibbonTraces(ribbon);
@@ -1749,7 +1833,7 @@
   }
 
   global.SectionCompute = {
-    rectsOverlap, subtractRects, computeGeometry, formatGeometryOutput,
+    rectsOverlap, subtractRects, neutralAxis, computeGeometry, formatGeometryOutput,
     computeStressExtremes, buildGeometryFigure, buildStressFigure,
     buildShearFigure, buildTorsionFigure, computeTorsionConstant,
     niceStep, niceMinorStep,

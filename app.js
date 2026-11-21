@@ -150,22 +150,69 @@
    *  remainder may be several rectangles). Returns true if anything was added. */
   function tryAddRect(rect) {
     const note = $("form-note");
+    note.textContent = "";
     const overlaps = state.rects.some((r) => C.rectsOverlap(rect, r));
     const pieces = C.subtractRects(rect, state.rects);
     if (!pieces.length) {
+      // nothing to save: always say so, whatever the "don't show again" choice
       note.textContent = "The rectangle lies entirely inside existing ones: its overlapping part was discarded " +
         "and nothing was added.";
       return false;
     }
-    note.textContent = overlaps
-      ? "The rectangle overlapped existing ones: the overlapping part was discarded. Saved as " +
-        pieces.length + " rectangle" + (pieces.length > 1 ? "s" : "") + ": " +
-        pieces.map((p) => `[x0=${p[0]}, y0=${p[1]}, b=${p[2]}, h=${p[3]}]`).join(", ") + "."
-      : "";
-    for (const p of pieces) state.rects.push(p);
-    rectsChanged();
+    if (overlaps && !overlapAskDisabled()) {
+      // ask first: the rectangle is only saved if the user presses "Add"
+      pendingPieces = pieces;
+      askOverlap(pieces);
+      return true;
+    }
+    commitPieces(pieces);
     return true;
   }
+
+  function commitPieces(pieces) {
+    for (const p of pieces) state.rects.push(p);
+    rectsChanged();
+    // the stress maps are no longer valid: go back to the geometry
+    if (activeTab !== "geom") selectTab("geom");
+  }
+
+  // ---------------------------------------------------------------------
+  // overlap confirmation: Accept / Reject. "Don't ask again" only lasts until
+  // the page is closed or reloaded: the warning is shown again every time the
+  // app is opened. (Nothing is stored in the browser.)
+  // ---------------------------------------------------------------------
+  let askDisabledThisSession = false;
+  let pendingPieces = null;
+  // a previous version remembered the choice permanently: forget it
+  try { window.localStorage.removeItem("sectionAnalyzer.hideOverlapNotice"); } catch (e) { /* ignore */ }
+
+  function overlapAskDisabled() { return askDisabledThisSession; }
+
+  function askOverlap(pieces) {
+    $("ov-count").textContent = pieces.length + " rectangle" + (pieces.length > 1 ? "s" : "");
+    $("ov-list").textContent = pieces.map((p) => `[x0=${p[0]}, y0=${p[1]}, b=${p[2]}, h=${p[3]}]`).join("  ");
+    $("ov-dontshow").checked = false;
+    $("overlap-modal").hidden = false;
+    $("ov-cancel").focus();
+  }
+
+  function answerOverlap(accept) {
+    const pieces = pendingPieces;
+    pendingPieces = null;
+    $("overlap-modal").hidden = true;
+    if (accept && pieces) {
+      if ($("ov-dontshow").checked) askDisabledThisSession = true;
+      commitPieces(pieces);
+    } else {
+      render("geom");            // drops a rectangle sketched on the graph
+    }
+  }
+
+  $("ov-ok").addEventListener("click", () => answerOverlap(true));
+  $("ov-cancel").addEventListener("click", () => answerOverlap(false));
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !$("overlap-modal").hidden) answerOverlap(false);
+  });
 
   $("btn-add").addEventListener("click", () => {
     const x0 = readNumber("in-x0"), y0 = readNumber("in-y0");
@@ -265,6 +312,28 @@
       `Sigma min (compression) = ${f4(ext.sigmaMin)} MPa  at (x=${f3(ext.locMin[0])}, y=${f3(ext.locMin[1])}) mm`,
     ]);
 
+    // neutral axis (sigma = 0) in the centroidal axes x, y
+    const na = C.neutralAxis(Mx, My, N, g);
+    const nz = (v) => (Math.abs(v) < 5e-5 ? 0 : v);          // avoid "-0.0000"
+    if (na.defined) {
+      lines.push("", "---- Neutral axis (σ = 0), centroidal axes x, y ----");
+      if (na.vertical) {
+        lines.push(
+          `x = ${f4(nz(na.xIntercept))} mm  (parallel to the y axis: no intercept δ with the y axis)`,
+          `β (angle with the x axis, counter-clockwise if positive) = ${f4(na.betaDeg)} deg`,
+        );
+      } else {
+        const th = nz(na.theta);
+        lines.push(
+          `y = tan(β)·x + δ  →  y = ${f4(nz(na.m))}·x ${th < 0 ? "-" : "+"} ${f4(Math.abs(th))}`,
+          `δ (intercept with the y axis) = ${f4(th)} mm`,
+          `β (angle with the x axis, counter-clockwise if positive) = ${f4(nz(na.betaDeg))} deg`,
+        );
+      }
+    } else if (na.reason !== "no internal action") {
+      lines.push("", "Neutral axis not defined: " + na.reason + ".");
+    }
+
     if (Vx !== 0 || Vy !== 0) {
       const sh = C.buildShearFigure(state.rects, g, Vx, Vy);
       lines.push(
@@ -296,8 +365,18 @@
 
     state.stress = [Mx_kNm, My_kNm, N_kN, Vx_kN, Vy_kN, T_kNm];
     state.outputLines = lines;
+    const wasOnGeometry = activeTab === "geom";
     renderOutput();
     renderAll();
+
+    // from the "Section geometry" tab, jump to the stress map that matters:
+    // normal stress (N, Mx or My), else shear (Tx or Ty), else torsion (Mz).
+    // From any other tab, stay where we are.
+    if (wasOnGeometry) {
+      if (N_kN !== 0 || Mx_kNm !== 0 || My_kNm !== 0) selectTab("stress");
+      else if (Vx_kN !== 0 || Vy_kN !== 0) selectTab("shear");
+      else if (T_kNm !== 0) selectTab("torsion");
+    }
   });
 
   // ---------------------------------------------------------------------

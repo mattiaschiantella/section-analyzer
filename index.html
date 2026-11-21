@@ -133,6 +133,26 @@
     }
     .hint.small { font-size: .78rem; }
 
+    /* ---------- overlap notice (modal) ---------- */
+    .modal {
+      position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+      padding: 16px; background: rgba(20, 28, 51, .55); backdrop-filter: blur(2px);
+    }
+    .modal[hidden] { display: none; }
+    .modal-box {
+      width: min(560px, 100%); max-height: 90vh; overflow: auto; background: var(--card);
+      border-radius: var(--radius); box-shadow: 0 20px 60px rgba(0,0,0,.35); padding: 22px 24px 20px;
+      border-top: 5px solid #e9a23b;
+    }
+    .modal-box h3 { margin: 0 0 10px; font-size: 1.08rem; }
+    .modal-box p { margin: 0 0 10px; font-size: .92rem; color: #34406a; }
+    .modal-box .saved { font-family: var(--mono); font-size: .8rem; background: #f6f8fd; padding: 8px 10px; border-radius: 8px; word-break: break-word; }
+    .modal-box label.chk { display: flex; gap: 8px; align-items: center; margin: 14px 0 4px; font-size: .88rem; color: var(--muted); cursor: pointer; }
+    .modal-box .row { justify-content: flex-end; }
+    #ov-cancel { color: var(--ink); background: #fff; border-color: var(--line); min-width: 90px; }
+    #ov-cancel:hover { background: #f1f4fb; }
+    #ov-ok { color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2)); min-width: 90px; }
+
     /* ---------- rectangle table ---------- */
     #rect-list-div p { margin: 8px 0; color: var(--muted); font-style: italic; }
     table { width: 100%; border-collapse: collapse; margin: 8px 0 4px; font-size: .88rem; }
@@ -248,8 +268,8 @@
     <p class="disclaimer">
       <b>Disclaimer</b> — The author does not guarantee that the script is free from errors.
       The app is intended for educational purposes; please report any bug by e-mail.
-      <b>Overlaps:</b> if a new rectangle overlaps existing ones, the overlapping part is discarded automatically
-      and only the remaining part is saved (as one or more rectangles).
+      <b>Overlaps:</b> if a new rectangle overlaps existing ones, you are asked to accept or reject it; if you
+      accept, the overlapping part is discarded and only the remaining part is saved (as one or more rectangles).
     </p>
   </section>
 
@@ -352,7 +372,7 @@
     <h3>What it computes</h3>
     <ul>
       <li><b>Geometric properties:</b> area, centroid, second moments of area <code>Ix</code>, <code>Iy</code>, mean inertia and principal axes.</li>
-      <li><b>Normal stress:</b> <code>σ</code> from axial force <code>N</code> and biaxial bending <code>Mx</code>, <code>My</code>, with the maximum tension and compression and where they occur.</li>
+      <li><b>Normal stress:</b> <code>σ</code> from axial force <code>N</code> and biaxial bending <code>Mx</code>, <code>My</code>, with the maximum tension and compression and where they occur, and the equation of the <b>neutral axis</b> <code>y = tan(β)·x + δ</code> in the centroidal axes (δ = intercept with the y axis, β = angle with the x axis, also drawn on the stress map).</li>
       <li><b>Shear stress:</b> approximate Jourawski method, <code>τ = T·S / (I·b)</code> (T = shear force, S = static moment, b = wall thickness), evaluated separately for <code>Tx</code> and <code>Ty</code> piece by piece along the wall of the section.</li>
       <li><b>Torsional shear stress:</b> open thin-walled sections (Saint-Venant), <code>J = Σ L·b³ / 3</code>, <code>τ<sub>t,max</sub> = Mz·b / J</code>; single closed cells (Bredt),<code>J = 4Ω² / ∮ ds/b</code>, <code>τ = Mz / (2Ω·b)</code>.</li>
     </ul>
@@ -370,8 +390,8 @@
       through the shear center, torsion by Bredt's theory). Multi-cell sections are not supported yet
       and a warning is shown. For thick pieces (e.g. a square) loaded perpendicular to their long side the shear
       through the thickness is neglected, and shear is computed with the axes x–y, not the principal axes.
-      When a new rectangle overlaps existing ones, the overlapping part is discarded automatically and the rest is
-      saved (possibly split into several rectangles), so no area is ever counted twice. Use the results as an educational estimate and check critical cases independently.
+      When a new rectangle overlaps existing ones you are asked to accept or reject it; if you accept, the
+      overlapping part is discarded and the rest is saved (possibly split into several rectangles), so no area is ever counted twice. Use the results as an educational estimate and check critical cases independently.
     </p>
 
     <div class="it">
@@ -385,6 +405,24 @@
       </p>
     </div>
   </section>
+
+  <div id="overlap-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="ov-title">
+    <div class="modal-box">
+      <h3 id="ov-title">Warning: the rectangle overlaps existing ones</h3>
+      <p>
+        The rectangle you are adding is overlapping the existing ones. If you <b>accept</b>, it will be modified:
+        the overlapping part is <b>discarded</b> and only the remaining part is saved
+        as <span id="ov-count"></span>:
+      </p>
+      <p class="saved" id="ov-list"></p>
+      <p>Do you want to accept?</p>
+      <label class="chk"><input type="checkbox" id="ov-dontshow"> Don't ask again</label>
+      <div class="row">
+        <button id="ov-cancel">Reject</button>
+        <button id="ov-ok">Accept</button>
+      </div>
+    </div>
+  </div>
 
   <script src="plotly.min.js"></script>
   <script src="compute.js"></script>
