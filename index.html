@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Section Analyzer – Section Properties and Stress Analysis Online</title>
-  <meta name="description" content="Free online calculator for composite rectangular cross-sections: area, centroid, moments of inertia, principal axes, normal stress from biaxial bending and axial force, Jourawski shear stress and torsional shear stress. Runs in your browser.">
+  <title>Section Analyzer – Calcolo sezioni e tensioni (Jourawski) | Section properties calculator</title>
+  <meta name="description" content="Calcolo online di baricentro, momenti d'inerzia, tensioni normali, asse neutro, tensioni tangenziali (Jourawski) e torsione per sezioni di rettangoli. Free section properties and stress calculator.">
   <meta name="author" content="Mattia Schiantella">
-  <meta name="keywords" content="section properties, cross-section calculator, moment of inertia, centroid, Jourawski shear stress, biaxial bending, normal stress, torsion, structural mechanics, proprietà sezione, momento d'inerzia, baricentro, tensioni tangenziali">
+  <meta name="keywords" content="calcolo baricentro sezione composta, momento d'inerzia sezione, tensioni tangenziali Jourawski, asse neutro flessione deviata, torsione Bredt Saint-Venant, scienza delle costruzioni, section properties calculator, moment of inertia composite section, Jourawski shear stress, neutral axis biaxial bending">
   <link rel="canonical" href="https://mattiaschiantella.github.io/section-analyzer/">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Section Analyzer – Section Properties and Stress Analysis">
-  <meta property="og:description" content="Area, centroid, inertia, normal and shear stresses of composite rectangular sections. Free, runs in your browser.">
+  <meta property="og:title" content="Section Analyzer – Calcolo sezioni e tensioni | Section properties and stress analysis">
+  <meta property="og:description" content="Baricentro, momenti d'inerzia, tensioni normali e tangenziali, torsione di sezioni composte da rettangoli. Gratuito, nel browser.">
   <meta property="og:url" content="https://mattiaschiantella.github.io/section-analyzer/">
   <script type="application/ld+json">
   {
@@ -20,7 +20,8 @@
     "url": "https://mattiaschiantella.github.io/section-analyzer/",
     "applicationCategory": "EducationalApplication",
     "operatingSystem": "Any (web browser)",
-    "description": "Section properties and stress analysis of composite rectangular cross-sections.",
+    "description": "Calcolo di proprietà della sezione e tensioni (normali, tangenziali di Jourawski, torsione) per sezioni composte da rettangoli. Section properties and stress analysis of composite rectangular cross-sections.",
+    "inLanguage": ["it", "en"],
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
     "author": { "@type": "Person", "name": "Mattia Schiantella", "affiliation": { "@type": "Organization", "name": "University of Perugia" } }
   }
@@ -196,6 +197,23 @@
     .plot-body .hint { margin: 4px 4px 8px; }
     .graph { width: 100%; }
 
+
+    /* ---------- language switch ---------- */
+    html[data-lang="en"] .lang-it { display: none !important; }
+    html[data-lang="it"] .lang-en { display: none !important; }
+    html[data-lang="it"] #output-text:empty::before {
+      content: "I risultati compariranno qui dopo aver calcolato la geometria o le tensioni.";
+    }
+    header.top { flex-wrap: wrap; }
+    .langsw { display: flex; gap: 6px; margin-right: 10px; }
+    .langbtn {
+      display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.12); color: #fff;
+      font-size: .78rem; font-weight: 700; margin: 0;
+    }
+    .langbtn svg { width: 20px; height: 14px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+    .langbtn:hover { background: rgba(255,255,255,.28); }
+    .langbtn[aria-pressed="true"], .langbtn[aria-pressed="true"]:hover { background: #fff; color: var(--brand); border-color: #fff; }
     /* ---------- author band ---------- */
     .author {
       max-width: 1744px; margin: 18px 28px 0; padding: 14px 20px; background: var(--card);
@@ -237,8 +255,26 @@
       margin: 14px 0 0; padding: 10px 14px; background: #fff7e8; border-left: 3px solid #e9a23b;
       border-radius: 0 8px 8px 0; color: #5b4311;
     }
-    .info .it { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line); }
   </style>
+  <script>
+    /* language: ?lang=it|en in the address, else the user's earlier choice, else the browser language */
+    (function () {
+      var l = "en";
+      try {
+        var q = new URLSearchParams(location.search).get("lang");
+        var s = null;
+        try { s = localStorage.getItem("sectionAnalyzer.lang"); } catch (e) {}
+        if (q === "it" || q === "en") l = q;
+        else if (s === "it" || s === "en") l = s;
+        else {
+          var n = (navigator.languages && navigator.languages[0]) || navigator.language || "";
+          if (/^it/i.test(n)) l = "it";
+        }
+      } catch (e) {}
+      document.documentElement.setAttribute("data-lang", l);
+      document.documentElement.lang = l;
+    })();
+  </script>
 </head>
 <body>
   <header class="top">
@@ -250,10 +286,14 @@
     </div>
     <div>
       <h1>Section Properties and Stress Analysis</h1>
-      <p>Geometric properties, normal, shear and torsional stresses of composite rectangular sections</p>
+      <p><span class="lang-en">Geometric properties, normal, shear and torsional stresses of composite rectangular sections</span><span class="lang-it">Caratteristiche geometriche, tensioni normali, tangenziali e da torsione di sezioni composte da rettangoli</span></p>
     </div>
     <div class="spacer"></div>
-    <span class="badge">Runs entirely in your browser</span>
+    <div class="langsw" role="group" aria-label="Language / Lingua">
+      <button type="button" id="lang-en" class="langbtn" aria-pressed="true" title="English"><svg viewBox="0 0 60 30" aria-hidden="true"><clipPath id="uj-s"><path d="M0,0 v30 h60 v-30 z"/></clipPath><clipPath id="uj-t"><path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z"/></clipPath><g clip-path="url(#uj-s)"><path d="M0,0 v30 h60 v-30 z" fill="#012169"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/><path d="M0,0 L60,30 M60,0 L0,30" clip-path="url(#uj-t)" stroke="#C8102E" stroke-width="4"/><path d="M30,0 v30 M0,15 h60" stroke="#fff" stroke-width="10"/><path d="M30,0 v30 M0,15 h60" stroke="#C8102E" stroke-width="6"/></g></svg> EN</button>
+      <button type="button" id="lang-it" class="langbtn" aria-pressed="false" title="Italiano"><svg viewBox="0 0 3 2" aria-hidden="true"><rect width="1" height="2" fill="#009246"/><rect x="1" width="1" height="2" fill="#fff"/><rect x="2" width="1" height="2" fill="#ce2b37"/></svg> IT</button>
+    </div>
+    <span class="badge"><span class="lang-en">Runs entirely in your browser</span><span class="lang-it">Funziona interamente nel browser</span></span>
   </header>
 
   <section class="author">
@@ -266,10 +306,8 @@
       </div>
     </div>
     <p class="disclaimer">
-      <b>Disclaimer</b> — The author does not guarantee that the script is free from errors.
-      The app is intended for educational purposes; please report any bug by e-mail.
-      <b>Overlaps:</b> if a new rectangle overlaps existing ones, you are asked to accept or reject it; if you
-      accept, the overlapping part is discarded and only the remaining part is saved (as one or more rectangles).
+      <span class="lang-en"><b>Disclaimer</b> — The author does not guarantee that the script is free from errors. The app is intended for educational purposes; please report any bug by e-mail.</span>
+      <span class="lang-it"><b>Avvertenza</b> — L'autore non garantisce che il programma sia privo di errori; l'app ha scopo didattico, segnala eventuali errori via e-mail.</span>
     </p>
   </section>
 
@@ -292,9 +330,7 @@
         <div id="form-error" class="err"></div>
         <div id="form-note" class="note"></div>
         <p class="hint">
-          Reference system: x positive to the LEFT, y positive DOWNWARD
-          (De Saint Venant's convention). x0 and y0 are the coordinates of the
-          top-right vertex of the rectangle. All values in mm.
+          <span class="lang-en">Reference system: x positive to the LEFT, y positive DOWNWARD (De Saint Venant's convention). x0 and y0 are the coordinates of the top-right vertex of the rectangle. All values in mm.</span><span class="lang-it">Sistema di riferimento: x positivo verso SINISTRA, y positivo verso il BASSO (convenzione di De Saint Venant). x0 e y0 sono le coordinate del vertice in alto a destra del rettangolo. Tutti i valori in mm.</span>
         </p>
       </fieldset>
 
@@ -319,10 +355,7 @@
           <input id="in-T" type="number" placeholder="Mz [kN·m]">
         </div>
         <p class="hint small">
-          Shear stress is evaluated separately for Tx and Ty components.
-          Open sections and closed single-cell sections are supported (multi-cell sections are not yet);
-          for closed sections the shear force is assumed to act through the shear center.
-          The torsional moment Mz is positive if counterclockwise.
+          <span class="lang-en">Shear stress is evaluated separately for Tx and Ty components. Open sections and closed single-cell sections are supported (multi-cell sections are not yet); for closed sections the shear force is assumed to act through the shear center. The torsional moment Mz is positive if counterclockwise.</span><span class="lang-it">Le tensioni tangenziali sono valutate separatamente per le componenti Tx e Ty. Sono supportate le sezioni aperte e le sezioni chiuse a cella singola (non ancora quelle a più celle); per le sezioni chiuse il taglio si intende applicato nel centro di taglio. Il momento torcente Mz è positivo se antiorario.</span>
         </p>
         <button id="btn-compute-stress">Compute stresses</button>
         <div id="stress-error" class="err"></div>
@@ -346,9 +379,7 @@
         <div class="plot-body">
           <div id="panel-geom">
             <p class="hint small">
-              Tip: use the rectangle-draw tool ▢ in the graph toolbar to sketch a rectangle directly on the plot
-              (snaps to the grid on screen — zoom in for a finer grid). Mouse wheel = zoom,
-              hold the wheel button and drag = pan.
+              <span class="lang-en">Tip: use the rectangle-draw tool ▢ in the graph toolbar to sketch a rectangle directly on the plot (snaps to the grid on screen — zoom in for a finer grid). Mouse wheel = zoom, hold the wheel button and drag = pan.</span><span class="lang-it">Suggerimento: usa lo strumento rettangolo ▢ nella barra del grafico per disegnare un rettangolo direttamente sul grafico (si aggancia alla griglia visibile: ingrandisci per una griglia più fine). Rotellina = zoom, tasto centrale premuto e trascinato = spostamento.</span>
             </p>
             <div id="geom-graph" class="graph"></div>
           </div>
@@ -361,65 +392,133 @@
   </main>
 
   <section class="info">
-    <h2>About this tool</h2>
-    <p>
-      Section Analyzer is a free educational calculator for cross-sections built from rectangles.
-      Define the rectangles by their top-right vertex, base and height (in mm), compute the geometry,
-      then apply internal actions to see the stress maps. Everything runs in your browser:
-      no data is sent to any server.
-    </p>
-
-    <h3>What it computes</h3>
-    <ul>
-      <li><b>Geometric properties:</b> area, centroid, second moments of area <code>Ix</code>, <code>Iy</code>, mean inertia and principal axes.</li>
-      <li><b>Normal stress:</b> <code>σ</code> from axial force <code>N</code> and biaxial bending <code>Mx</code>, <code>My</code>, with the maximum tension and compression and where they occur, and the equation of the <b>neutral axis</b> <code>y = tan(β)·x + δ</code> in the centroidal axes (δ = intercept with the y axis, β = angle with the x axis, also drawn on the stress map).</li>
-      <li><b>Shear stress:</b> approximate Jourawski method, <code>τ = T·S / (I·b)</code> (T = shear force, S = static moment, b = wall thickness), evaluated separately for <code>Tx</code> and <code>Ty</code> piece by piece along the wall of the section.</li>
-      <li><b>Torsional shear stress:</b> open thin-walled sections (Saint-Venant), <code>J = Σ L·b³ / 3</code>, <code>τ<sub>t,max</sub> = Mz·b / J</code>; single closed cells (Bredt),<code>J = 4Ω² / ∮ ds/b</code>, <code>τ = Mz / (2Ω·b)</code>.</li>
-    </ul>
-
-    <h3>Conventions</h3>
-    <ul>
-      <li>Reference system: <b>x positive to the left, y positive downward</b> (De Saint Venant's convention in structural mechanics).</li>
-      <li>Lengths in mm, forces in kN, moments in kN·m, stresses in MPa.</li>
-      <li>The torsional moment <code>Mz</code> is positive if counterclockwise.</li>
-    </ul>
-
-    <p class="warn">
-      <b>Limits of the method.</b> The shear and torsion results assume thin-walled sections made of contiguous
-      rectangles: open sections, or a <b>single closed cell</b> (box, tube; the shear force is assumed to act
-      through the shear center, torsion by Bredt's theory). Multi-cell sections are not supported yet
-      and a warning is shown. For thick pieces (e.g. a square) loaded perpendicular to their long side the shear
-      through the thickness is neglected, and shear is computed with the axes x–y, not the principal axes.
-      When a new rectangle overlaps existing ones you are asked to accept or reject it; if you accept, the
-      overlapping part is discarded and the rest is saved (possibly split into several rectangles), so no area is ever counted twice. Use the results as an educational estimate and check critical cases independently.
-    </p>
-
-    <div class="it">
-      <h3>In italiano</h3>
+    <div class="lang-en" lang="en">
+      <h2>About this tool</h2>
       <p>
-        <b>Section Analyzer</b> è un calcolatore gratuito, a scopo didattico, per sezioni composte da rettangoli contigui:
-        area, baricentro, momenti d'inerzia e assi principali, tensioni normali da sforzo normale e flessione deviata,
-        tensioni tangenziali con il metodo approssimato di Jourawski e tensioni tangenziali da torsione per sezioni
-        a parete sottile, aperte o chiuse a cella singola (scatolari, tubi). Il calcolo avviene interamente nel browser. Sistema di riferimento: x positivo verso sinistra,
-        y positivo verso il basso.
+        Section Analyzer is a free educational calculator for cross-sections built from rectangles.
+        Define the rectangles by their top-right vertex, base and height (in mm), compute the geometry,
+        then apply internal actions to see the stress maps. Everything runs in your browser:
+        no data is sent to any server.
       </p>
+
+      <h3>What it computes</h3>
+      <ul>
+        <li><b>Geometric properties:</b> area, centroid, second moments of area <code>Ix</code>, <code>Iy</code>, mean inertia and principal axes.</li>
+        <li><b>Normal stress:</b> <code>σ</code> from axial force <code>N</code> and biaxial bending <code>Mx</code>, <code>My</code>, with the maximum tension and compression and where they occur, and the equation of the <b>neutral axis</b> <code>y = tan(β)·x + δ</code> in the centroidal axes (δ = intercept with the y axis, β = angle with the x axis, also drawn on the stress map).</li>
+        <li><b>Shear stress:</b> approximate Jourawski method, <code>τ = T·S / (I·b)</code> (T = shear force, S = static moment, b = wall thickness), evaluated separately for <code>Tx</code> and <code>Ty</code> piece by piece along the wall of the section.</li>
+        <li><b>Torsional shear stress:</b> open thin-walled sections (Saint-Venant), <code>J = Σ L·b³ / 3</code>, <code>τ<sub>t,max</sub> = Mz·b / J</code>; single closed cells (Bredt), <code>J = 4Ω² / ∮ ds/b</code>, <code>τ = Mz / (2Ω·b)</code>.</li>
+      </ul>
+
+      <h3>Conventions</h3>
+      <ul>
+        <li>Reference system: <b>x positive to the left, y positive downward</b> (De Saint Venant's convention in structural mechanics).</li>
+        <li>Lengths in mm, forces in kN, moments in kN·m, stresses in MPa.</li>
+        <li>The torsional moment <code>Mz</code> is positive if counterclockwise.</li>
+      </ul>
+
+      <p class="warn">
+        <b>Limits of the method.</b> The shear and torsion results assume thin-walled sections made of contiguous
+        rectangles: open sections, or a <b>single closed cell</b> (box, tube; the shear force is assumed to act
+        through the shear center, torsion by Bredt's theory). Multi-cell sections are not supported yet
+        and a warning is shown. For thick pieces (e.g. a square) loaded perpendicular to their long side the shear
+        through the thickness is neglected, and shear is computed with the axes x–y, not the principal axes.
+        When a new rectangle overlaps existing ones you are asked to accept or reject it; if you accept, the
+        overlapping part is discarded and the rest is saved (possibly split into several rectangles), so no area is
+        ever counted twice. Use the results as an educational estimate and check critical cases independently.
+      </p>
+    </div>
+
+    <div class="lang-it" lang="it">
+      <h2>Calcolo online delle proprietà della sezione e delle tensioni</h2>
+      <p>
+        <b>Section Analyzer</b> è un calcolatore gratuito, a scopo didattico, per sezioni composte da rettangoli contigui.
+        Si inseriscono i rettangoli (vertice in alto a destra, base e altezza in mm), si calcolano le caratteristiche
+        geometriche e poi si applicano le azioni interne per vedere le mappe delle tensioni. Il calcolo avviene
+        interamente nel browser: nessun dato viene inviato a un server.
+      </p>
+
+      <h3>Baricentro, momenti d'inerzia e assi principali d'inerzia</h3>
+      <p>
+        Il programma calcola l'area, le coordinate del baricentro, i momenti d'inerzia baricentrici
+        <code>Ix</code> e <code>Iy</code>, il prodotto d'inerzia <code>Ixy</code>, l'orientamento degli assi principali
+        d'inerzia e i momenti principali <code>I1</code> e <code>I2</code> di una sezione composta.
+      </p>
+
+      <h3>Tensioni normali: sforzo normale, flessione retta e deviata, asse neutro</h3>
+      <p>
+        Per sforzo normale <code>N</code> e momenti flettenti <code>Mx</code>, <code>My</code> (flessione deviata)
+        la tensione normale in un punto di coordinate <code>x</code>, <code>y</code> rispetto al baricentro è
+        <code>σ = N/A + [(Iy·Mx + Ixy·My)·y − (Ix·My + Ixy·Mx)·x] / Δ</code>, con <code>Δ = Ix·Iy − Ixy²</code>.
+        L'app mostra la mappa di <code>σ</code>, i valori massimo (trazione) e minimo (compressione), l'equazione
+        dell'<b>asse neutro</b> <code>y = tan(β)·x + δ</code> (δ = intercetta con l'asse y, β = angolo con l'asse x)
+        e disegna l'angolo β sul grafico.
+      </p>
+
+      <h3>Tensioni tangenziali: formula di Jourawski</h3>
+      <p>
+        Per il taglio, valutato separatamente per le componenti <code>Tx</code> e <code>Ty</code>, si usa il metodo
+        approssimato di Jourawski, <code>τ = T·S / (I·b)</code>, con <code>S</code> momento statico della parte di sezione
+        oltre la corda considerata e <code>b</code> spessore della parete. Sono supportate le sezioni aperte a parete
+        sottile e le sezioni chiuse a cella singola (scatolari, tubi), con il taglio applicato nel centro di taglio.
+      </p>
+
+      <h3>Torsione: Saint-Venant per sezioni aperte, Bredt per sezioni chiuse</h3>
+      <p>
+        Per il momento torcente <code>Mz</code> nelle sezioni aperte a parete sottile si usa la teoria di Saint-Venant,
+        <code>J = Σ L·b³ / 3</code> e <code>τ<sub>t,max</sub> = Mz·b / J</code>. Nelle sezioni chiuse a cella singola
+        si usa la formula di Bredt, <code>J = 4Ω² / ∮ ds/b</code> e <code>τ = Mz / (2Ω·b)</code>, con
+        <code>Ω</code> area racchiusa dalla linea media.
+      </p>
+
+      <h3>Come si usa</h3>
+      <ul>
+        <li>Inserisci ogni rettangolo con <code>x0</code>, <code>y0</code> (vertice in alto a destra), base e altezza in mm, poi premi <b>Add rectangle</b>.</li>
+        <li>Premi <b>Compute geometry</b> per area, baricentro e momenti d'inerzia.</li>
+        <li>Inserisci le azioni interne (<code>N</code> in kN; <code>Mx</code>, <code>My</code>, <code>Mz</code> in kN·m; <code>Tx</code>, <code>Ty</code> in kN) e premi <b>Compute stresses</b>.</li>
+        <li>Sistema di riferimento: <b>x positivo verso sinistra, y positivo verso il basso</b> (convenzione di De Saint Venant). <code>Mz</code> è positivo se antiorario.</li>
+        <li>Se un nuovo rettangolo si sovrappone a quelli già inseriti, l'app chiede di accettare o rifiutare: se accetti, la parte sovrapposta viene scartata e viene salvata solo la parte rimanente (anche come più rettangoli).</li>
+      </ul>
+
+      <p class="warn">
+        <b>Limiti del metodo.</b> Taglio e torsione valgono per sezioni a parete sottile composte da rettangoli contigui:
+        sezioni aperte oppure a <b>cella singola</b> chiusa. Le sezioni a più celle non sono ancora supportate e
+        compare un avviso. Per pezzi tozzi (per esempio un quadrato) il taglio nello spessore è trascurato e il taglio è
+        calcolato con gli assi x–y, non con gli assi principali. I risultati sono una stima a scopo didattico: verifica
+        sempre i casi critici con un altro metodo.
+      </p>
+
+      <h3>Domande frequenti</h3>
+      <p><b>Come si calcola il baricentro di una sezione composta da più rettangoli?</b>
+        Come media delle coordinate dei baricentri dei singoli rettangoli pesata sulle aree. Il programma lo fa
+        automaticamente con «Compute geometry».</p>
+      <p><b>Che cos'è l'asse neutro in flessione deviata?</b>
+        È il luogo dei punti in cui la tensione normale è nulla. Non coincide in generale con l'asse del momento
+        flettente: il programma ne mostra l'equazione e lo disegna con l'angolo β.</p>
+      <p><b>La formula di Jourawski vale per le sezioni chiuse?</b>
+        Con alcune accortezze sì: nelle sezioni chiuse a cella singola il flusso di taglio è quello della sezione aperta
+        più un flusso costante, determinato imponendo che la cella non ruoti (taglio nel centro di taglio).</p>
     </div>
   </section>
 
   <div id="overlap-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="ov-title">
     <div class="modal-box">
-      <h3 id="ov-title">Warning: the rectangle overlaps existing ones</h3>
-      <p>
+      <h3 id="ov-title"><span class="lang-en">Warning: the rectangle overlaps existing ones</span><span class="lang-it">Attenzione: il rettangolo si sovrappone a quelli esistenti</span></h3>
+      <p class="lang-en">
         The rectangle you are adding is overlapping the existing ones. If you <b>accept</b>, it will be modified:
         the overlapping part is <b>discarded</b> and only the remaining part is saved
-        as <span id="ov-count"></span>:
+        as <span id="ov-count-en"></span>:
+      </p>
+      <p class="lang-it">
+        Il rettangolo che stai aggiungendo si sovrappone a quelli esistenti. Se <b>accetti</b>, verrà modificato:
+        la parte sovrapposta viene <b>scartata</b> e viene salvata solo la parte rimanente
+        come <span id="ov-count-it"></span>:
       </p>
       <p class="saved" id="ov-list"></p>
-      <p>Do you want to accept?</p>
-      <label class="chk"><input type="checkbox" id="ov-dontshow"> Don't ask again</label>
+      <p><span class="lang-en">Do you want to accept?</span><span class="lang-it">Vuoi accettare?</span></p>
+      <label class="chk"><input type="checkbox" id="ov-dontshow"> <span class="lang-en">Don't ask again</span><span class="lang-it">Non chiedere più</span></label>
       <div class="row">
-        <button id="ov-cancel">Reject</button>
-        <button id="ov-ok">Accept</button>
+        <button id="ov-cancel"><span class="lang-en">Reject</span><span class="lang-it">Rifiuta</span></button>
+        <button id="ov-ok"><span class="lang-en">Accept</span><span class="lang-it">Accetta</span></button>
       </div>
     </div>
   </div>

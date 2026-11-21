@@ -19,6 +19,28 @@
   const CONFIG = { displaylogo: false, scrollZoom: true, responsive: true };
   const CONFIG_GEOM = Object.assign({}, CONFIG, { modeBarButtonsToAdd: ["drawrect", "eraseshape"] });
 
+  // ---------------------------------------------------------------------
+  // language (English / Italian): only descriptions and messages change, the
+  // commands and the results stay in English. The first choice is made in the
+  // <head> (address ?lang=, earlier choice, browser language); here only the
+  // two buttons and the messages written by this script.
+  // ---------------------------------------------------------------------
+  const lang = () => (document.documentElement.getAttribute("data-lang") === "it" ? "it" : "en");
+  const tr = (en, it) => (lang() === "it" ? it : en);
+  function syncLangButtons() {
+    $("lang-en").setAttribute("aria-pressed", String(lang() === "en"));
+    $("lang-it").setAttribute("aria-pressed", String(lang() === "it"));
+  }
+  function setLang(l) {
+    document.documentElement.setAttribute("data-lang", l);
+    document.documentElement.lang = l;
+    try { window.localStorage.setItem("sectionAnalyzer.lang", l); } catch (e) { /* storage unavailable */ }
+    syncLangButtons();
+  }
+  $("lang-en").addEventListener("click", () => setLang("en"));
+  $("lang-it").addEventListener("click", () => setLang("it"));
+  syncLangButtons();
+
 
   // ---------------------------------------------------------------------
   // author banner
@@ -155,8 +177,9 @@
     const pieces = C.subtractRects(rect, state.rects);
     if (!pieces.length) {
       // nothing to save: always say so, whatever the "don't show again" choice
-      note.textContent = "The rectangle lies entirely inside existing ones: its overlapping part was discarded " +
-        "and nothing was added.";
+      note.textContent = tr(
+        "The rectangle lies entirely inside existing ones: its overlapping part was discarded and nothing was added.",
+        "Il rettangolo sta interamente dentro quelli esistenti: la parte sovrapposta è stata scartata e non è stato aggiunto nulla.");
       return false;
     }
     if (overlaps && !overlapAskDisabled()) {
@@ -189,7 +212,8 @@
   function overlapAskDisabled() { return askDisabledThisSession; }
 
   function askOverlap(pieces) {
-    $("ov-count").textContent = pieces.length + " rectangle" + (pieces.length > 1 ? "s" : "");
+    $("ov-count-en").textContent = pieces.length + " rectangle" + (pieces.length > 1 ? "s" : "");
+    $("ov-count-it").textContent = pieces.length + (pieces.length > 1 ? " rettangoli" : " rettangolo");
     $("ov-list").textContent = pieces.map((p) => `[x0=${p[0]}, y0=${p[1]}, b=${p[2]}, h=${p[3]}]`).join("  ");
     $("ov-dontshow").checked = false;
     $("overlap-modal").hidden = false;
@@ -218,8 +242,11 @@
     const x0 = readNumber("in-x0"), y0 = readNumber("in-y0");
     const b = readNumber("in-b"), h = readNumber("in-h");
     const err = $("form-error");
-    if ([x0, y0, b, h].some((v) => v === null)) { err.textContent = "Invalid input values"; return; }
-    if (b <= 0 || h <= 0) { err.textContent = "Base and height must be positive"; return; }
+    if ([x0, y0, b, h].some((v) => v === null)) { err.textContent = tr("Invalid input values", "Valori non validi"); return; }
+    if (b <= 0 || h <= 0) {
+      err.textContent = tr("Base and height must be positive", "Base e altezza devono essere positive");
+      return;
+    }
     err.textContent = "";
     tryAddRect([x0, y0, b, h]);
   });
@@ -291,7 +318,7 @@
   $("btn-compute-stress").addEventListener("click", () => {
     const msg = $("stress-error");
     if (!state.rects.length || !state.geom) {
-      msg.textContent = "Compute the geometry first.";
+      msg.textContent = tr("Compute the geometry first.", "Calcola prima la geometria.");
       return;
     }
     msg.textContent = "";
