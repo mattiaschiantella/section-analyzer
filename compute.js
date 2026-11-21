@@ -69,6 +69,34 @@
     return true;
   }
 
+  /** `rect` minus the area already covered by `existing`: a list of disjoint
+   *  rectangles [x0, y0, b, h] (empty if rect is fully covered). Each existing
+   *  rectangle cuts every remaining piece into at most 4 rectangles; of the
+   *  two possible ways of cutting (vertical strips first / horizontal strips
+   *  first) the one giving fewer pieces is used. */
+  function subtractRects(rect, existing) {
+    const EPS = 1e-9;
+    const clean = (v) => Number(v.toPrecision(12));
+    const mk = (xl, xr, yt, yb) => (xr - xl > EPS && yb - yt > EPS)
+      ? [clean(xl), clean(yt), clean(xr - xl), clean(yb - yt)] : null;
+    let pieces = [rect.slice()];
+    for (const e of existing) {
+      const next = [];
+      for (const p of pieces) {
+        if (!rectsOverlap(p, e)) { next.push(p); continue; }
+        const pl = p[0], pr = p[0] + p[2], pt = p[1], pb = p[1] + p[3];
+        const il = Math.max(pl, e[0]), ir = Math.min(pr, e[0] + e[2]);
+        const it = Math.max(pt, e[1]), ib = Math.min(pb, e[1] + e[3]);
+        const vertical = [mk(pl, il, pt, pb), mk(ir, pr, pt, pb), mk(il, ir, pt, it), mk(il, ir, ib, pb)];
+        const horizontal = [mk(pl, pr, pt, it), mk(pl, pr, ib, pb), mk(pl, il, it, ib), mk(ir, pr, it, ib)];
+        const a = vertical.filter(Boolean), b = horizontal.filter(Boolean);
+        for (const q of (b.length < a.length ? b : a)) next.push(q);
+      }
+      pieces = next;
+    }
+    return pieces;
+  }
+
   function computeGeometry(rects) {
     let A_tot = 0, x_num = 0, y_num = 0;
     for (const [x0, y0, b, h] of rects) {
@@ -1016,7 +1044,201 @@
     return out;
   }
 
-  function shearRibbonsForDirection(rects, g, V, direction, bbox, color, lineColor) {
+  // =====================================================================
+  // closed single-cell sections
+  //
+  // The open-section Jourawski logic needs a free tip to start from. A
+  // closed cell has none, so the loop is CUT (a hairline gap in one wall)
+  // to get an open tree, the open flow is computed on it, and a constant
+  // flow q0 is added around the loop so that the cell does not twist:
+  //     closed-integral( q / b ds ) = 0   ->   q0 = -oint(q_open/b) / oint(1/b)
+  // This is the shear flow of a force acting through the shear center.
+  // =====================================================================
+
+  function uniqSorted(vals) {
+    const v = vals.slice().sort((a, b) => a - b);
+    const out = [];
+    for (const x of v) if (!out.length || x - out[out.length - 1] > 1e-9) out.push(x);
+    return out;
+  }
+
+  /** Enclosed voids of the union of rectangles: connected components of
+   *  uncovered grid cells that cannot reach the outside. */
+  function findHoles(rects) {
+    const xs = uniqSorted(rects.flatMap((r) => [r[0], r[0] + r[2]]));
+    const ys = uniqSorted(rects.flatMap((r) => [r[1], r[1] + r[3]]));
+    const nx = xs.length - 1, ny = ys.length - 1;
+    if (nx < 1 || ny < 1) return [];
+    const W = nx + 2, H = ny + 2;
+    const covered = new Array(W * H).fill(false);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const cx = (xs[i] + xs[i + 1]) / 2, cy = (ys[j] + ys[j + 1]) / 2;
+        if (rects.some((r) => cx > r[0] && cx < r[0] + r[2] && cy > r[1] && cy < r[1] + r[3])) {
+          covered[(j + 1) * W + (i + 1)] = true;
+        }
+      }
+    }
+    const seen = new Array(W * H).fill(false);
+    const cellArea = (idx) => {
+      const i = (idx % W) - 1, j = Math.floor(idx / W) - 1;
+      return (xs[i + 1] - xs[i]) * (ys[j + 1] - ys[j]);
+    };
+    const flood = (start) => {
+      let area = 0;
+      const stack = [start];
+      seen[start] = true;
+      while (stack.length) {
+        const c = stack.pop();
+        const i = c % W, j = Math.floor(c / W);
+        if (i >= 1 && i <= nx && j >= 1 && j <= ny) area += cellArea(c);
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ii = i + di, jj = j + dj;
+          if (ii < 0 || jj < 0 || ii >= W || jj >= H) continue;
+          const k = jj * W + ii;
+          if (!seen[k] && !covered[k]) { seen[k] = true; stack.push(k); }
+        }
+      }
+      return area;
+    };
+    flood(0);                       // the outside
+    const holes = [];
+    for (let k = 0; k < W * H; k++) if (!seen[k] && !covered[k]) holes.push({ area: flood(k) });
+    return holes;
+  }
+
+  const thicknessOf = (r) => Math.min(r[2], r[3]);
+
+  /** null when the section has no hole. Otherwise
+   *  { supported, cells, note, cutRects, loop (Map cutRects index -> {sigma,R0,R1,b}),
+   *    walls [{rect, thickness, length, sigma}], omega, orient }.
+   *  opts (tests only): { cutPiece, cutFrac } */
+  function closedSectionAnalysis(rects, opts) {
+    opts = opts || {};
+    const holes = findHoles(rects);
+    if (!holes.length) return null;
+    if (holes.length > 1) {
+      return { supported: false, cells: holes.length,
+        note: `closed section with ${holes.length} cells: multi-cell sections are not supported yet, shear/torsion results are NOT reliable` };
+    }
+    const fail = (why) => ({ supported: false, cells: 1,
+      note: `closed single-cell section not supported (${why}): shear/torsion results are NOT reliable` });
+
+    const sb = sectionBounds(rects);
+    const spanRef = Math.max(sb.xmax - sb.xmin, sb.ymax - sb.ymin, 1);
+    const eps = 1e-4 * spanRef;
+    const frac = opts.cutFrac === undefined ? 0.5 : opts.cutFrac;
+
+    const cands = [];
+    rects.forEach((r, i) => {
+      if (opts.cutPiece !== undefined && opts.cutPiece !== i) return;
+      const ax = longAxis(r);
+      const [s0, s1] = ax === "x" ? [r[0], r[0] + r[2]] : [r[1], r[1] + r[3]];
+      const th = thicknessOf(r);
+      for (const [a, b] of freeSegments(s0, s1, excludedIntervals(r, rects)).map((sg) => [sg[0], sg[1]])) {
+        const sc = a + frac * (b - a);
+        if (sc - s0 > 1.05 * th && s1 - sc > 1.05 * th) cands.push({ i, ax, s0, s1, sc, len: b - a });
+      }
+    });
+    cands.sort((p, q) => q.len - p.len);
+
+    let sawParallel = false;
+    for (const c of cands) {
+      const r = rects[c.i];
+      const lo = c.ax === "x" ? [r[0], r[1], c.sc - eps / 2 - r[0], r[3]] : [r[0], r[1], r[2], c.sc - eps / 2 - r[1]];
+      const hi = c.ax === "x"
+        ? [c.sc + eps / 2, r[1], r[0] + r[2] - c.sc - eps / 2, r[3]]
+        : [r[0], c.sc + eps / 2, r[2], r[1] + r[3] - c.sc - eps / 2];
+      const cut = rects.slice();
+      cut[c.i] = lo;
+      cut.push(hi);
+      if (findHoles(cut).length !== 0) continue;            // this wall is not on the loop
+      const iLo = c.i, iHi = cut.length - 1, n = cut.length;
+
+      // shortest path hi -> lo in the touching graph (a tree: it is THE loop)
+      const parent = new Array(n).fill(-2);
+      parent[iHi] = -1;
+      const queue = [iHi];
+      while (queue.length) {
+        const u = queue.shift();
+        for (let v = 0; v < n; v++) {
+          if (parent[v] === -2 && v !== u && rectsTouch(cut[u], cut[v])) { parent[v] = u; queue.push(v); }
+        }
+      }
+      if (parent[iLo] === -2) continue;
+      const path = [];
+      for (let v = iLo; v !== -1; v = parent[v]) path.push(v);
+      path.reverse();                                       // [hi, p1, ..., p_{k-1}, lo]
+      const k = path.length - 1;
+      if (k < 4) continue;
+
+      let ok = true;
+      for (let j = 0; j < k; j++) if (longAxis(cut[path[j]]) === longAxis(cut[path[j + 1]])) ok = false;
+      if (!ok) { sawParallel = true; continue; }
+
+      const mid = (q) => [q[0] + q[2] / 2, q[1] + q[3] / 2];
+      const vertex = (A, B) => {
+        const [ax, ay] = mid(A), [bx, by] = mid(B);
+        return longAxis(A) === "x" ? [bx, ay] : [ax, by];
+      };
+      const vs = [vertex(cut[path[0]], cut[path[1]])];
+      for (let j = 1; j <= k - 1; j++) vs.push(vertex(cut[path[j]], cut[path[j + 1]]));
+      // vs[j] joins path[j] and path[j+1] (vs[0]: P/p1 ... vs[k-1]: p_{k-1}/P)
+
+      let area2 = 0;
+      for (let j = 0; j < k; j++) {
+        const [xa, ya] = vs[j], [xb, yb] = vs[(j + 1) % k];
+        area2 += xa * yb - xb * ya;
+      }
+      const omega = Math.abs(area2) / 2;
+      const orient = area2 > 0 ? 1 : -1;                    // +1: counterclockwise on screen
+      const coord = (v, ax) => (ax === "x" ? v[0] : v[1]);
+
+      const loop = new Map();
+      const walls = [];
+      const axP = c.ax;
+      const sigmaP = Math.sign(coord(vs[0], axP) - coord(vs[k - 1], axP));
+      if (sigmaP === 0 || omega <= 0) { ok = false; }
+      if (!ok) continue;
+      const thP = thicknessOf(r);
+      const scLo = c.sc - eps / 2, scHi = c.sc + eps / 2;
+      const c0 = coord(vs[0], axP), cK = coord(vs[k - 1], axP);
+      loop.set(iLo, { sigma: sigmaP, R0: Math.min(cK, scLo), R1: Math.max(cK, scLo), b: thP });
+      loop.set(iHi, { sigma: sigmaP, R0: Math.min(scHi, c0), R1: Math.max(scHi, c0), b: thP });
+      walls.push({ rect: r, thickness: thP, length: Math.abs(c0 - cK), sigma: sigmaP });
+      for (let j = 1; j <= k - 1; j++) {
+        const w = cut[path[j]], ax = longAxis(w);
+        const sIn = coord(vs[j - 1], ax), sOut = coord(vs[j], ax);
+        const sg = Math.sign(sOut - sIn);
+        if (sg === 0) { ok = false; break; }
+        loop.set(path[j], { sigma: sg, R0: Math.min(sIn, sOut), R1: Math.max(sIn, sOut), b: thicknessOf(w) });
+        walls.push({ rect: w, thickness: thicknessOf(w), length: Math.abs(sOut - sIn), sigma: sg });
+      }
+      if (!ok) continue;
+      return { supported: true, cells: 1, cutRects: cut, loop, walls, omega, orient };
+    }
+    return fail(sawParallel ? "walls of the loop are offset from each other" : "could not open the loop");
+  }
+
+  /** Integral of a piecewise-linear q(s) (constant outside the samples). */
+  function integratePiecewise(s, q, R0, R1) {
+    const f = (x) => {
+      if (x <= s[0]) return q[0];
+      if (x >= s[s.length - 1]) return q[q.length - 1];
+      let lo = 0, hi = s.length - 1;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (s[m] <= x) lo = m; else hi = m; }
+      const d = s[hi] - s[lo];
+      return d < 1e-12 ? q[hi] : q[lo] + (q[hi] - q[lo]) * (x - s[lo]) / d;
+    };
+    const pts = [R0, R1];
+    for (const v of s) if (v > R0 && v < R1) pts.push(v);
+    pts.sort((a, b) => a - b);
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) total += (f(pts[i]) + f(pts[i + 1])) / 2 * (pts[i + 1] - pts[i]);
+    return total;
+  }
+
+  function shearRibbonsForDirection(rects, g, V, direction, bbox, color, lineColor, closed) {
     const [sxmin, sxmax, symin, symax] = bbox;
     const spanRef = Math.max(sxmax - sxmin, symax - symin, 1);
     const gap = 0.05 * spanRef;
@@ -1028,19 +1250,52 @@
 
     const perPiece = [];
     const allAbs = [];
+    const I = direction === "Vy" ? g.Ix : g.Iy;
+
+    // pass 1: open-section profiles (on the cut section for a closed cell)
+    const prof = [];
     for (const rect of rects) {
       const perpendicular = !isSpineRole(rect, direction);
-      let s, Q, thickness, isXSweep, s0Free = null, s1Free = null;
+      let s, Q, thickness, isXSweep, s0Free = null, s1Free = null, kappa;
       if (perpendicular) {
         const p = perpendicularPieceProfile(rect, rects, g, direction);
         s = p.s; Q = p.Q; thickness = p.thickness; isXSweep = p.isXSweep; s0Free = p.s0Free; s1Free = p.s1Free;
+        kappa = s.length
+          ? branchDirection(s[0], s[s.length - 1], sideAttachments(rect, rects).map(([a, bnd]) => [a, bnd]), s0Free, s1Free, s)
+          : [];
       } else {
         const p = spineProfile(rect, rects, g, direction);
         s = p.s; Q = p.Q; thickness = p.thickness; isXSweep = p.isXSweep;
+        kappa = s.map(() => 1);
       }
-      const I = direction === "Vy" ? g.Ix : g.Iy;
+      prof.push({ rect, s, Q, thickness, isXSweep, perpendicular, s0Free, s1Free, kappa });
+    }
+
+    // pass 2: closed cell -> constant flow q0 around the loop (zero twist).
+    // Signed flow along +s of a piece: q_s = -kappa * V * Q / I.
+    let q0 = 0;
+    if (closed && closed.supported) {
+      let num = 0, den = 0;
+      prof.forEach((p, i) => {
+        const info = closed.loop.get(i);
+        if (!info) return;
+        den += (info.R1 - info.R0) / info.b;
+        if (!p.s.length) return;
+        const qLoop = p.Q.map((q, k) => info.sigma * (-p.kappa[k] * V * q / I));
+        num += integratePiecewise(p.s, qLoop, info.R0, info.R1) / info.b;
+      });
+      q0 = den > 0 ? -num / den : 0;
+      prof.forEach((p, i) => {
+        const info = closed.loop.get(i);
+        if (!info || !p.s.length) return;
+        p.Q = p.Q.map((q, k) => q - info.sigma * q0 * I / (p.kappa[k] * V));
+      });
+    }
+
+    for (const p of prof) {
+      const { rect, s, Q, thickness, isXSweep, perpendicular, s0Free, s1Free } = p;
       const tau = Q.map((q) => V * q / (I * thickness));
-      perPiece.push({ rect, s, tau, isXSweep, perpendicular, s0Free, s1Free });
+      perPiece.push({ rect, s, tau, isXSweep, perpendicular, s0Free, s1Free, kappa: p.kappa });
       allAbs.push(tau.length ? absMax(tau) : 0);
     }
 
@@ -1162,16 +1417,20 @@
     return {
       traces, annotations: flowAnnotations.concat(perPieceAnnotations, globalAnnotation),
       tauMax, locMax, view: [vxmin, vxmax, vymin, vymax],
+      debug: { perPiece, q0 },
     };
   }
 
   /** Per-rectangle Jourawski analysis drawn in the same plot as the
    *  section. Vx, Vy already in N. */
-  function buildShearFigure(rects, g, Vx, Vy) {
+  function buildShearFigure(rects, g, Vx, Vy, opts) {
     const { xmin, xmax, ymin, ymax } = sectionBounds(rects);
     const bbox = [xmin, xmax, ymin, ymax];
 
     const shapes = rectShapes(rects, "lightgray", 0.5);
+    // closed single-cell section: analyse the loop-opened copy of the section
+    const closed = closedSectionAnalysis(rects, opts);
+    const work = closed && closed.supported ? closed.cutRects : rects;
     let traces = [], annotations = [];
     let tauMaxVy = 0, tauMaxVx = 0;
     let locVy = [g.x_bar, g.y_bar], locVx = [g.x_bar, g.y_bar];
@@ -1184,11 +1443,11 @@
       vymin = Math.min(vymin, r.view[2]); vymax = Math.max(vymax, r.view[3]);
     };
     if (Math.abs(Vy) > 1e-9) {
-      const r = shearRibbonsForDirection(rects, g, Vy, "Vy", bbox, "rgba(0,100,0,0.30)", "darkgreen");
+      const r = shearRibbonsForDirection(work, g, Vy, "Vy", bbox, "rgba(0,100,0,0.30)", "darkgreen", closed);
       tauMaxVy = r.tauMax; locVy = r.locMax; merge(r);
     }
     if (Math.abs(Vx) > 1e-9) {
-      const r = shearRibbonsForDirection(rects, g, Vx, "Vx", bbox, "rgba(255,140,0,0.30)", "darkorange");
+      const r = shearRibbonsForDirection(work, g, Vx, "Vx", bbox, "rgba(255,140,0,0.30)", "darkorange", closed);
       tauMaxVx = r.tauMax; locVx = r.locMax; merge(r);
     }
 
@@ -1207,7 +1466,8 @@
       yaxis: { range: yr, title: { text: "y [mm]" }, zeroline: false, scaleanchor: "x", scaleratio: 1 },
       margin: { l: 50, r: 30, t: 30, b: 50 }, height: 560, showlegend: false, dragmode: "pan",
     });
-    return { fig: { data: traces, layout }, tauMax, locMax };
+    return { fig: { data: traces, layout }, tauMax, locMax,
+      closed: closed ? { supported: closed.supported, cells: closed.cells, note: closed.note || null } : null };
   }
 
   // =====================================================================
@@ -1232,6 +1492,28 @@
       J += Math.max(length, 0) * Math.pow(thickness, 3) / 3;
     }
     return J;
+  }
+
+  /** Torsion constant. Open sections: Saint-Venant, J = sum(L b^3 / 3).
+   *  Single closed cell (Bredt): Jc = 4 Omega^2 / oint(ds/b), plus the
+   *  Saint-Venant term of every wall NOT in the loop (fins, outstands); the
+   *  twisting moment splits in proportion to J (same twist rate). */
+  function torsionModel(rects) {
+    const closed = closedSectionAnalysis(rects);
+    if (!closed || !closed.supported) return { J: computeTorsionConstant(rects), closed };
+    const loopKeys = new Set(closed.walls.map((w) => keyOf(w.rect)));
+    let sumLb = 0;
+    for (const w of closed.walls) sumLb += w.length / w.thickness;
+    const Jc = 4 * closed.omega * closed.omega / sumLb;
+    let Jo = 0;
+    for (const rect of rects) {
+      if (loopKeys.has(keyOf(rect))) continue;
+      const { s0, s1, thickness, excluded } = torsionEffectiveSpan(rect, rects);
+      let length = s1 - s0;
+      for (const [a, b] of excluded) length -= b - a;
+      Jo += Math.max(length, 0) * Math.pow(thickness, 3) / 3;
+    }
+    return { J: Jc + Jo, Jc, Jo, closed };
   }
 
   /** For every grid point, the signed distance n from its own
@@ -1261,14 +1543,40 @@
   }
 
   function buildTorsionFigure(rects, g, T) {
-    const J = computeTorsionConstant(rects);
+    const model = torsionModel(rects);
+    const J = model.J;
     const { xmin, xmax, ymin, ymax } = sectionBounds(rects);
+
+    // closed cell: uniform tau = q / b around the loop, q = Mz (Jc/J) / (2 Omega),
+    // signed along +s of each wall (+x horizontal, +y vertical)
+    // loopTau: value shown / colour (circulation sign: same sign on the whole
+    // loop, positive = counterclockwise like Mz); loopDir: +1/-1 direction of
+    // the flow along +s of each wall, only used for the arrows
+    const loopTau = new Map();
+    const loopDir = new Map();
+    if (model.closed && model.closed.supported && J > 0) {
+      const q = T * (model.Jc / J) / (2 * model.closed.omega);
+      for (const w of model.closed.walls) {
+        loopTau.set(keyOf(w.rect), q / w.thickness);
+        loopDir.set(keyOf(w.rect), (q >= 0 ? 1 : -1) * model.closed.orient * w.sigma);
+      }
+    }
 
     const nx = 260, ny = 260;
     const X = linspace(xmin, xmax, nx);
     const Y = linspace(ymin, ymax, ny);
     const nField = torsionNField(rects, X, Y);
     const tauField = nField.map((row) => row.map((n) => (Number.isNaN(n) ? null : (J > 0 ? 2 * T * n / J : 0))));
+    for (const rect of rects) {
+      const tl = loopTau.get(keyOf(rect));
+      if (tl === undefined) continue;
+      const [x0, y0, b, h] = rect;
+      for (let i = 0; i < ny; i++) {
+        for (let j = 0; j < nx; j++) {
+          if (tauField[i][j] !== null && X[j] >= x0 && X[j] <= x0 + b && Y[i] >= y0 && Y[i] <= y0 + h) tauField[i][j] = tl;
+        }
+      }
+    }
 
     let tauMax = 0;
     let locMax = [g.x_bar, g.y_bar];
@@ -1276,7 +1584,8 @@
     const flowAnnotations = [];
     for (const [x0, y0, b, h] of rects) {
       const thickness = Math.min(b, h);
-      const segTauMax = J > 0 ? Math.abs(T) * thickness / J : 0;
+      const tlSeg = loopTau.get(keyOf([x0, y0, b, h]));
+      const segTauMax = tlSeg !== undefined ? Math.abs(tlSeg) : (J > 0 ? Math.abs(T) * thickness / J : 0);
       if (segTauMax > tauMax) { tauMax = segTauMax; locMax = [x0 + b / 2, y0 + h / 2]; }
       if (segTauMax > 1e-6) {
         perSegAnnotations.push({
@@ -1308,11 +1617,12 @@
 
     for (const rect of rects) {
       const [x0, y0, b, h] = rect;
+      const tlRect = loopTau.get(keyOf(rect));
       let s, tauS, base, outer, hoverX, hoverY;
       if (b >= h) {
         s = linspace(y0, y0 + h, 20);
         const nvals = s.map((v) => -(v - (y0 + h / 2)));
-        tauS = nvals.map((n) => (J > 0 ? 2 * T * n / J : 0));
+        tauS = nvals.map((n) => (tlRect !== undefined ? tlRect : (J > 0 ? 2 * T * n / J : 0)));
         const sign = chooseOffsetSign(rect, rects, "x");
         base = sign < 0 ? x0 - clearance : x0 + b + clearance;
         outer = tauS.map((t) => base + sign * scale * t);
@@ -1321,7 +1631,7 @@
       } else {
         s = linspace(x0, x0 + b, 20);
         const nvals = s.map((v) => v - (x0 + b / 2));
-        tauS = nvals.map((n) => (J > 0 ? 2 * T * n / J : 0));
+        tauS = nvals.map((n) => (tlRect !== undefined ? tlRect : (J > 0 ? 2 * T * n / J : 0)));
         const sign = chooseOffsetSign(rect, rects, "y");
         base = sign < 0 ? y0 - clearance : y0 + h + clearance;
         outer = tauS.map((t) => base + sign * scale * t);
@@ -1338,7 +1648,12 @@
         for (const [segA, segB] of freeSegs) {
           const pts = linspace(segA + 0.1 * (segB - segA), segB - 0.1 * (segB - segA), 3);
           for (const p of pts) {
-            if (b >= h) {
+            if (tlRect !== undefined) {
+              // closed loop: one arrow on the midline, along the circulation
+              const sg = loopDir.get(keyOf(rect));
+              if (b >= h) flowAnnotations.push(arrow(p + arrowLen / 2 * sg, y0 + h / 2, p - arrowLen / 2 * sg, y0 + h / 2));
+              else flowAnnotations.push(arrow(x0 + b / 2, p + arrowLen / 2 * sg, x0 + b / 2, p - arrowLen / 2 * sg));
+            } else if (b >= h) {
               // top edge (y0): tau sign = +Tsign ; bottom edge (y0+h): -Tsign
               flowAnnotations.push(arrow(p + arrowLen / 2 * Tsign, y0, p - arrowLen / 2 * Tsign, y0));
               flowAnnotations.push(arrow(p - arrowLen / 2 * Tsign, y0 + h, p + arrowLen / 2 * Tsign, y0 + h));
@@ -1352,10 +1667,14 @@
       }
 
       const mid = Math.floor(s.length / 2);
-      const halves = [
-        [0, mid + 1, "rgba(30,60,200,0.28)", "rgba(20,40,150,0.8)"],
-        [mid, s.length, "rgba(200,30,30,0.28)", "rgba(150,20,20,0.8)"],
-      ];
+      const halves = tlRect !== undefined
+        // closed loop: uniform stress across the thickness, one colour (blue = positive)
+        ? [[0, s.length, tlRect >= 0 ? "rgba(30,60,200,0.28)" : "rgba(200,30,30,0.28)",
+            tlRect >= 0 ? "rgba(20,40,150,0.8)" : "rgba(150,20,20,0.8)"]]
+        : [
+          [0, mid + 1, "rgba(30,60,200,0.28)", "rgba(20,40,150,0.8)"],
+          [mid, s.length, "rgba(200,30,30,0.28)", "rgba(150,20,20,0.8)"],
+        ];
       for (const [i0, i1, col, lcol] of halves) {
         let px, py;
         if (b >= h) {
@@ -1399,7 +1718,9 @@
       yaxis: { range: yr, title: { text: "y [mm]" }, zeroline: false, scaleanchor: "x", scaleratio: 1 },
       margin: { l: 50, r: 30, t: 30, b: 50 }, height: 560, showlegend: false, dragmode: "pan",
     });
-    return { fig: { data, layout }, tauMax, locMax, J };
+    return { fig: { data, layout }, tauMax, locMax, J,
+      closed: model.closed ? { supported: model.closed.supported, cells: model.closed.cells,
+        note: model.closed.note || null, Jc: model.Jc, omega: model.closed.omega } : null };
   }
 
   // =====================================================================
@@ -1428,11 +1749,11 @@
   }
 
   global.SectionCompute = {
-    rectsOverlap, computeGeometry, formatGeometryOutput,
+    rectsOverlap, subtractRects, computeGeometry, formatGeometryOutput,
     computeStressExtremes, buildGeometryFigure, buildStressFigure,
     buildShearFigure, buildTorsionFigure, computeTorsionConstant,
     niceStep, niceMinorStep,
-    _internal: { spineProfile, perpendicularPieceProfile, excludedIntervals, sideAttachments,
-      endNeighbors, longAxis, isSpineRole, flangeTotalMoment },
+    _internal: { torsionModel, shearRibbonsForDirection, spineProfile, perpendicularPieceProfile, excludedIntervals, sideAttachments,
+      endNeighbors, longAxis, isSpineRole, flangeTotalMoment, closedSectionAnalysis, findHoles },
   };
 })(typeof window !== "undefined" ? window : globalThis);

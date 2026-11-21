@@ -19,11 +19,6 @@
   const CONFIG = { displaylogo: false, scrollZoom: true, responsive: true };
   const CONFIG_GEOM = Object.assign({}, CONFIG, { modeBarButtonsToAdd: ["drawrect", "eraseshape"] });
 
-  const OVERLAP_MESSAGE =
-    "The current rectangle is overlapping the previous ones. " +
-    "If you continue, the shared part will be counted twice " +
-    "in the area, centroid and moment of inertia calculations. " +
-    "Press OK to add it anyway, or Cancel to discard it.";
 
   // ---------------------------------------------------------------------
   // author banner
@@ -151,12 +146,23 @@
     return Number.isFinite(v) ? v : null;
   }
 
-  /** Overlap check + native confirm, then append. Returns true if added. */
+  /** Adds the rectangle WITHOUT the part that overlaps existing ones (the
+   *  remainder may be several rectangles). Returns true if anything was added. */
   function tryAddRect(rect) {
-    if (state.rects.some((r) => C.rectsOverlap(rect, r)) && !window.confirm(OVERLAP_MESSAGE)) {
+    const note = $("form-note");
+    const overlaps = state.rects.some((r) => C.rectsOverlap(rect, r));
+    const pieces = C.subtractRects(rect, state.rects);
+    if (!pieces.length) {
+      note.textContent = "The rectangle lies entirely inside existing ones: its overlapping part was discarded " +
+        "and nothing was added.";
       return false;
     }
-    state.rects.push(rect);
+    note.textContent = overlaps
+      ? "The rectangle overlapped existing ones: the overlapping part was discarded. Saved as " +
+        pieces.length + " rectangle" + (pieces.length > 1 ? "s" : "") + ": " +
+        pieces.map((p) => `[x0=${p[0]}, y0=${p[1]}, b=${p[2]}, h=${p[3]}]`).join(", ") + "."
+      : "";
+    for (const p of pieces) state.rects.push(p);
     rectsChanged();
     return true;
   }
@@ -267,16 +273,25 @@
         `Tx = ${f4(Vx_kN)} kN, Ty = ${f4(Vy_kN)} kN`,
         `Tau max (approx, numeric) = ${f4(sh.tauMax)} MPa  at (x=${f3(sh.locMax[0])}, y=${f3(sh.locMax[1])}) mm`,
       );
+      if (sh.closed && sh.closed.supported) {
+        lines.push("Closed single-cell section: flow = open-section flow + constant q0 (zero twist),",
+          "force assumed to act through the shear center.");
+      } else if (sh.closed) {
+        lines.push("WARNING: " + sh.closed.note + ".");
+      }
     }
     if (T !== 0) {
       const to = C.buildTorsionFigure(state.rects, g, T);
+      const isClosed = to.closed && to.closed.supported;
       lines.push(
         "",
-        "---- Torsional shear stress (open thin-walled section) ----",
+        isClosed ? "---- Torsional shear stress (closed single-cell section, Bredt) ----"
+                 : "---- Torsional shear stress (open thin-walled section) ----",
         `Mz = ${f4(T_kNm)} kN·m (positive = counterclockwise)`,
         `J = ${f4(to.J)} mm⁴`,
         `Tau_t max = ${f4(to.tauMax)} MPa  at (x=${f3(to.locMax[0])}, y=${f3(to.locMax[1])}) mm`,
       );
+      if (to.closed && !to.closed.supported) lines.push("WARNING: " + to.closed.note + ".");
     }
 
     state.stress = [Mx_kNm, My_kNm, N_kN, Vx_kN, Vy_kN, T_kNm];

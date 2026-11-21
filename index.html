@@ -122,6 +122,11 @@
     #btn-delete:hover, #btn-delete-all:hover { background: #fff1f3; }
 
     .err { color: var(--danger); font-size: .85rem; min-height: 1.2em; margin-top: 6px; font-weight: 500; }
+    .note {
+      display: none; margin-top: 8px; padding: 8px 12px; font-size: .84rem; line-height: 1.45;
+      color: #5b4311; background: #fff7e8; border-left: 3px solid #e9a23b; border-radius: 0 8px 8px 0;
+    }
+    .note:not(:empty) { display: block; }
     .hint {
       color: var(--muted); font-size: .8rem; margin: 12px 0 0; padding: 9px 12px;
       background: #f6f8fd; border-left: 3px solid var(--brand); border-radius: 0 8px 8px 0;
@@ -243,6 +248,8 @@
     <p class="disclaimer">
       <b>Disclaimer</b> — The author does not guarantee that the script is free from errors.
       The app is intended for educational purposes; please report any bug by e-mail.
+      <b>Overlaps:</b> if a new rectangle overlaps existing ones, the overlapping part is discarded automatically
+      and only the remaining part is saved (as one or more rectangles).
     </p>
   </section>
 
@@ -263,6 +270,7 @@
           <button id="btn-compute-geom">Compute geometry</button>
         </div>
         <div id="form-error" class="err"></div>
+        <div id="form-note" class="note"></div>
         <p class="hint">
           Reference system: x positive to the LEFT, y positive DOWNWARD
           (De Saint Venant's convention). x0 and y0 are the coordinates of the
@@ -292,7 +300,8 @@
         </div>
         <p class="hint small">
           Shear stress is evaluated separately for Tx and Ty components.
-          Torsional shear stress can be evaluated only for open cross-sections.
+          Open sections and closed single-cell sections are supported (multi-cell sections are not yet);
+          for closed sections the shear force is assumed to act through the shear center.
           The torsional moment Mz is positive if counterclockwise.
         </p>
         <button id="btn-compute-stress">Compute stresses</button>
@@ -345,7 +354,7 @@
       <li><b>Geometric properties:</b> area, centroid, second moments of area <code>Ix</code>, <code>Iy</code>, mean inertia and principal axes.</li>
       <li><b>Normal stress:</b> <code>σ</code> from axial force <code>N</code> and biaxial bending <code>Mx</code>, <code>My</code>, with the maximum tension and compression and where they occur.</li>
       <li><b>Shear stress:</b> approximate Jourawski method, <code>τ = T·S / (I·b)</code> (T = shear force, S = static moment, b = wall thickness), evaluated separately for <code>Tx</code> and <code>Ty</code> piece by piece along the wall of the section.</li>
-      <li><b>Torsional shear stress:</b> open thin-walled sections (Saint-Venant), <code>J = Σ L·b³ / 3</code>, <code>τ<sub>t,max</sub> = Mz·b / J</code>.</li>
+      <li><b>Torsional shear stress:</b> open thin-walled sections (Saint-Venant), <code>J = Σ L·b³ / 3</code>, <code>τ<sub>t,max</sub> = Mz·b / J</code>; single closed cells (Bredt),<code>J = 4Ω² / ∮ ds/b</code>, <code>τ = Mz / (2Ω·b)</code>.</li>
     </ul>
 
     <h3>Conventions</h3>
@@ -356,10 +365,13 @@
     </ul>
 
     <p class="warn">
-      <b>Limits of the method.</b> The shear and torsion results assume thin-walled <b>open</b> sections made of
-      contiguous rectangles. Closed sections (boxes, cells) are not handled correctly for shear, and for thick
-      pieces (e.g. a square) loaded perpendicular to their long side the shear through the thickness is neglected.
-      Overlapping rectangles are counted twice. Use the results as an educational estimate and check critical cases independently.
+      <b>Limits of the method.</b> The shear and torsion results assume thin-walled sections made of contiguous
+      rectangles: open sections, or a <b>single closed cell</b> (box, tube; the shear force is assumed to act
+      through the shear center, torsion by Bredt's theory). Multi-cell sections are not supported yet
+      and a warning is shown. For thick pieces (e.g. a square) loaded perpendicular to their long side the shear
+      through the thickness is neglected, and shear is computed with the axes x–y, not the principal axes.
+      When a new rectangle overlaps existing ones, the overlapping part is discarded automatically and the rest is
+      saved (possibly split into several rectangles), so no area is ever counted twice. Use the results as an educational estimate and check critical cases independently.
     </p>
 
     <div class="it">
@@ -367,8 +379,8 @@
       <p>
         <b>Section Analyzer</b> è un calcolatore gratuito, a scopo didattico, per sezioni composte da rettangoli contigui:
         area, baricentro, momenti d'inerzia e assi principali, tensioni normali da sforzo normale e flessione deviata,
-        tensioni tangenziali con il metodo approssimato di Jourawski e tensioni tangenziali da torsione per sezioni aperte
-        a parete sottile. Il calcolo avviene interamente nel browser. Sistema di riferimento: x positivo verso sinistra,
+        tensioni tangenziali con il metodo approssimato di Jourawski e tensioni tangenziali da torsione per sezioni
+        a parete sottile, aperte o chiuse a cella singola (scatolari, tubi). Il calcolo avviene interamente nel browser. Sistema di riferimento: x positivo verso sinistra,
         y positivo verso il basso.
       </p>
     </div>
