@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Section Analyzer – Section Properties and Stress Analysis Online</title>
+  <meta name="description" content="Free online calculator for composite rectangular cross-sections: area, centroid, moments of inertia, principal axes, normal stress from biaxial bending and axial force, Jourawski shear stress and torsional shear stress. Runs in your browser.">
+  <meta name="author" content="Mattia Schiantella">
+  <meta name="keywords" content="section properties, cross-section calculator, moment of inertia, centroid, Jourawski shear stress, biaxial bending, normal stress, torsion, structural mechanics, proprietà sezione, momento d'inerzia, baricentro, tensioni tangenziali">
+  <link rel="canonical" href="https://mattiaschiantella.github.io/section-analyzer/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Section Analyzer – Section Properties and Stress Analysis">
+  <meta property="og:description" content="Area, centroid, inertia, normal and shear stresses of composite rectangular sections. Free, runs in your browser.">
+  <meta property="og:url" content="https://mattiaschiantella.github.io/section-analyzer/">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Section Analyzer",
+    "url": "https://mattiaschiantella.github.io/section-analyzer/",
+    "applicationCategory": "EducationalApplication",
+    "operatingSystem": "Any (web browser)",
+    "description": "Section properties and stress analysis of composite rectangular cross-sections.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+    "author": { "@type": "Person", "name": "Mattia Schiantella", "affiliation": { "@type": "Organization", "name": "University of Perugia" } }
+  }
+  </script>
+  <style>
+    :root {
+      --bg: #f1f4f9;
+      --card: #ffffff;
+      --ink: #1c2540;
+      --muted: #6b7694;
+      --line: #e3e8f2;
+      --brand: #2f5bea;
+      --brand-2: #6a3df0;
+      --brand-soft: #eaf0ff;
+      --danger: #d6334a;
+      --ok: #12a371;
+      --radius: 14px;
+      --shadow: 0 1px 2px rgba(28,37,64,.05), 0 8px 24px rgba(28,37,64,.07);
+      --mono: ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font: 15px/1.5 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    /* ---------- header ---------- */
+    header.top {
+      background: linear-gradient(120deg, #17306e 0%, var(--brand) 55%, var(--brand-2) 100%);
+      color: #fff; padding: 22px 28px; display: flex; align-items: center; gap: 16px;
+      box-shadow: 0 4px 20px rgba(23,48,110,.25);
+    }
+    .logo {
+      width: 46px; height: 46px; border-radius: 12px; background: rgba(255,255,255,.16);
+      display: grid; place-items: center; flex: none; backdrop-filter: blur(4px);
+    }
+    .logo svg { width: 28px; height: 28px; }
+    header.top h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: .2px; }
+    header.top p { margin: 2px 0 0; opacity: .8; font-size: .88rem; }
+    .spacer { flex: 1; }
+    .badge {
+      font-size: .75rem; padding: 4px 10px; border-radius: 999px;
+      background: rgba(255,255,255,.16); white-space: nowrap;
+    }
+
+    /* ---------- layout ---------- */
+    main.cols {
+      display: grid; grid-template-columns: minmax(360px, 430px) 1fr; gap: 22px;
+      padding: 22px 28px; max-width: 1800px; margin: 0 auto; align-items: start;
+    }
+    @media (max-width: 1000px) { main.cols { grid-template-columns: 1fr; padding: 16px; } }
+    .left { display: flex; flex-direction: column; gap: 16px; }
+    .right { position: sticky; top: 16px; min-width: 0; }
+    @media (max-width: 1000px) { .right { position: static; } }
+
+    /* ---------- cards ---------- */
+    fieldset {
+      border: 1px solid var(--line); background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); margin: 0; padding: 14px 18px 18px; min-width: 0;
+    }
+    legend {
+      padding: 4px 12px; font-weight: 650; font-size: .82rem; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--brand); background: var(--brand-soft);
+      border-radius: 999px;
+    }
+
+    /* ---------- inputs ---------- */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+    input[type=number], select {
+      width: 100%; padding: 9px 11px; font: inherit; color: var(--ink);
+      background: #f8faff; border: 1px solid var(--line); border-radius: 9px;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+    input[type=number]:focus, select:focus {
+      outline: none; border-color: var(--brand); background: #fff;
+      box-shadow: 0 0 0 3px rgba(47,91,234,.16);
+    }
+    input::placeholder { color: #9aa4bf; }
+
+    /* ---------- buttons ---------- */
+    .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+    button {
+      font: inherit; font-weight: 600; font-size: .9rem; cursor: pointer; border: 1px solid transparent;
+      padding: 9px 16px; border-radius: 9px; transition: transform .08s, box-shadow .15s, background .15s;
+    }
+    button:active { transform: translateY(1px); }
+    #btn-add, #btn-compute-geom, #btn-compute-stress {
+      color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-2));
+      box-shadow: 0 4px 12px rgba(47,91,234,.3);
+    }
+    #btn-add:hover, #btn-compute-geom:hover, #btn-compute-stress:hover { box-shadow: 0 6px 16px rgba(47,91,234,.4); }
+    #btn-compute-geom { background: linear-gradient(135deg, #0f9d83, #12a371); box-shadow: 0 4px 12px rgba(18,163,113,.3); }
+    #btn-compute-stress { width: 100%; margin-top: 14px; padding: 11px; }
+    #btn-delete, #btn-delete-all {
+      color: var(--danger); background: #fff; border-color: #f2c5cc;
+    }
+    #btn-delete:hover, #btn-delete-all:hover { background: #fff1f3; }
+
+    .err { color: var(--danger); font-size: .85rem; min-height: 1.2em; margin-top: 6px; font-weight: 500; }
+    .hint {
+      color: var(--muted); font-size: .8rem; margin: 12px 0 0; padding: 9px 12px;
+      background: #f6f8fd; border-left: 3px solid var(--brand); border-radius: 0 8px 8px 0;
+    }
+    .hint.small { font-size: .78rem; }
+
+    /* ---------- rectangle table ---------- */
+    #rect-list-div p { margin: 8px 0; color: var(--muted); font-style: italic; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 4px; font-size: .88rem; }
+    th {
+      text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+      color: var(--muted); padding: 6px 8px; border-bottom: 2px solid var(--line);
+    }
+    td { padding: 6px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+    tr:hover td { background: #f6f8fd; }
+    td:first-child { font-weight: 700; color: var(--brand); }
+    #rect-list-div { max-height: 220px; overflow: auto; }
+    #del-dropdown { flex: 1 1 100%; }
+
+    /* ---------- results ---------- */
+    #output-text {
+      margin: 8px 0 0; padding: 12px 14px; min-height: 150px; max-height: 420px; overflow: auto;
+      white-space: pre-wrap; font: .8rem/1.55 var(--mono); color: #d9e2ff;
+      background: #131c33; border-radius: 10px; border: 1px solid #263256;
+    }
+    #output-text:empty::before {
+      content: "Results will appear here after you compute the geometry or the stresses.";
+      color: #6f7da6; font-family: inherit;
+    }
+
+    /* ---------- tabs + plot ---------- */
+    .plot-card {
+      background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 10px 0; background: #f6f8fd; border-bottom: 1px solid var(--line); }
+    .tab-btn {
+      color: var(--muted); background: transparent; border: 1px solid transparent; border-bottom: none;
+      border-radius: 9px 9px 0 0; padding: 9px 16px; font-weight: 600; font-size: .86rem; margin: 0;
+    }
+    .tab-btn:hover { color: var(--brand); background: #fff8; }
+    .tab-btn.active {
+      color: var(--brand); background: var(--card); border-color: var(--line);
+      position: relative; top: 1px; box-shadow: inset 0 3px 0 var(--brand);
+    }
+    .plot-body { padding: 8px 10px 12px; }
+    .plot-body .hint { margin: 4px 4px 8px; }
+    .graph { width: 100%; }
+
+    /* ---------- author band ---------- */
+    .author {
+      max-width: 1744px; margin: 18px 28px 0; padding: 14px 20px; background: var(--card);
+      border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    @media (min-width: 1800px) { .author { margin-left: auto; margin-right: auto; } }
+    .avatar {
+      width: 44px; height: 44px; border-radius: 50%; flex: none; display: grid; place-items: center;
+      color: #fff; font-weight: 700; letter-spacing: .5px;
+      background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    }
+    .who { flex: 1 1 320px; min-width: 0; }
+    .who .name { font-weight: 650; font-size: 1.02rem; }
+    .who .meta { display: flex; flex-wrap: wrap; gap: 2px 14px; color: var(--muted); font-size: .84rem; }
+    .who .meta a { color: var(--brand); text-decoration: none; white-space: nowrap; }
+    .who .meta a:hover { text-decoration: underline; }
+    .disclaimer {
+      flex: 1 1 360px; margin: 0; padding: 8px 12px; font-size: .78rem; line-height: 1.45;
+      color: var(--muted); background: #f6f8fd; border-left: 3px solid var(--brand-2); border-radius: 0 8px 8px 0;
+    }
+    .disclaimer b { color: var(--ink); }
+    @media (max-width: 1000px) { .author { margin: 14px 16px 0; } }
+
+    /* ---------- about / documentation ---------- */
+    .info {
+      max-width: 1744px; margin: 0 28px 36px; padding: 22px 26px; background: var(--card);
+      border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+      font-size: .93rem; color: #34406a;
+    }
+    @media (min-width: 1800px) { .info { margin-left: auto; margin-right: auto; } }
+    @media (max-width: 1000px) { .info { margin: 0 16px 28px; padding: 18px; } }
+    .info h2 { margin: 0 0 8px; font-size: 1.15rem; color: var(--ink); }
+    .info h3 { margin: 20px 0 6px; font-size: .98rem; color: var(--brand); }
+    .info ul { margin: 6px 0 6px 1.1em; padding: 0; }
+    .info li { margin: 3px 0; }
+    .info code { font-family: var(--mono); font-size: .86em; background: #f1f4fb; padding: 1px 6px; border-radius: 5px; }
+    .info .warn {
+      margin: 14px 0 0; padding: 10px 14px; background: #fff7e8; border-left: 3px solid #e9a23b;
+      border-radius: 0 8px 8px 0; color: #5b4311;
+    }
+    .info .it { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line); }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="9" height="9" rx="1.5"/><rect x="12" y="12" width="9" height="9" rx="1.5"/>
+        <circle cx="12" cy="12" r="1.6" fill="#fff"/>
+      </svg>
+    </div>
+    <div>
+      <h1>Section Properties and Stress Analysis</h1>
+      <p>Geometric properties, normal, shear and torsional stresses of composite rectangular sections</p>
+    </div>
+    <div class="spacer"></div>
+    <span class="badge">Runs entirely in your browser</span>
+  </header>
+
+  <section class="author">
+    <div class="avatar">MS</div>
+    <div class="who">
+      <div class="name">Mattia Schiantella, PhD</div>
+      <div class="meta">
+        <span>Department of Civil and Environmental Engineering, University of Perugia, Italy</span>
+        <a href="mailto:mattia.schiantella@unipg.it">✉ mattia.schiantella@unipg.it</a>
+      </div>
+    </div>
+    <p class="disclaimer">
+      <b>Disclaimer</b> — The author does not guarantee that the script is free from errors.
+      The app is intended for educational purposes; please report any bug by e-mail.
+    </p>
+  </section>
+
+  <main class="cols">
+    <!-- ---------------- LEFT: controls ---------------- -->
+    <div class="left">
+
+      <fieldset>
+        <legend>1 · Geometry input</legend>
+        <div class="grid2">
+          <input id="in-x0" type="number" placeholder="x0 [mm]">
+          <input id="in-y0" type="number" placeholder="y0 [mm]">
+          <input id="in-b" type="number" placeholder="base [mm]">
+          <input id="in-h" type="number" placeholder="height [mm]">
+        </div>
+        <div class="row">
+          <button id="btn-add">＋ Add rectangle</button>
+          <button id="btn-compute-geom">Compute geometry</button>
+        </div>
+        <div id="form-error" class="err"></div>
+        <p class="hint">
+          Reference system: x positive to the LEFT, y positive DOWNWARD
+          (De Saint Venant's convention). x0 and y0 are the coordinates of the
+          top-right vertex of the rectangle. All values in mm.
+        </p>
+      </fieldset>
+
+      <fieldset>
+        <legend>2 · Defined rectangles</legend>
+        <div id="rect-list-div"></div>
+        <div class="row">
+          <select id="del-dropdown"></select>
+          <button id="btn-delete">Delete selected</button>
+          <button id="btn-delete-all">Delete all</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="inputs-small">
+        <legend>3 · Internal actions</legend>
+        <div class="grid3">
+          <input id="in-Mx" type="number" placeholder="Mx [kN·m]">
+          <input id="in-My" type="number" placeholder="My [kN·m]">
+          <input id="in-N" type="number" placeholder="N [kN]">
+          <input id="in-Vx" type="number" placeholder="Vx [kN]">
+          <input id="in-Vy" type="number" placeholder="Vy [kN]">
+          <input id="in-T" type="number" placeholder="Mz [kN·m]">
+        </div>
+        <p class="hint small">
+          Shear stress is evaluated separately for Vx and Vy components.
+          Torsional shear stress can be evaluated only for open cross-sections.
+          The torsional moment Mz is positive if counterclockwise.
+        </p>
+        <button id="btn-compute-stress">Compute stresses</button>
+        <div id="stress-error" class="err"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Results</legend>
+        <pre id="output-text"></pre>
+      </fieldset>
+    </div>
+
+    <!-- ---------------- RIGHT: plots ---------------- -->
+    <div class="right">
+      <div class="plot-card">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="geom">Section geometry</button>
+          <button class="tab-btn" data-tab="stress">Normal stress σ [MPa]</button>
+          <button class="tab-btn" data-tab="shear">Shear stress τ [MPa]</button>
+          <button class="tab-btn" data-tab="torsion">Torsional τ<sub>t</sub> [MPa]</button>
+        </div>
+        <div class="plot-body">
+          <div id="panel-geom">
+            <p class="hint small">
+              Tip: use the rectangle-draw tool ▢ in the graph toolbar to sketch a rectangle directly on the plot
+              (snaps to the grid on screen — zoom in for a finer grid). Mouse wheel = zoom,
+              hold the wheel button and drag = pan.
+            </p>
+            <div id="geom-graph" class="graph"></div>
+          </div>
+          <div id="panel-stress" style="display: none;"><div id="stress-graph" class="graph"></div></div>
+          <div id="panel-shear" style="display: none;"><div id="shear-graph" class="graph"></div></div>
+          <div id="panel-torsion" style="display: none;"><div id="torsion-graph" class="graph"></div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <section class="info">
+    <h2>About this tool</h2>
+    <p>
+      Section Analyzer is a free educational calculator for cross-sections built from rectangles.
+      Define the rectangles by their top-right vertex, base and height (in mm), compute the geometry,
+      then apply internal actions to see the stress maps. Everything runs in your browser:
+      no data is sent to any server.
+    </p>
+
+    <h3>What it computes</h3>
+    <ul>
+      <li><b>Geometric properties:</b> area, centroid, second moments of area <code>Ix</code>, <code>Iy</code>, mean inertia and principal axes.</li>
+      <li><b>Normal stress:</b> <code>σ</code> from axial force <code>N</code> and biaxial bending <code>Mx</code>, <code>My</code>, with the maximum tension and compression and where they occur.</li>
+      <li><b>Shear stress:</b> approximate Jourawski method, <code>τ = V·Q / (I·t)</code>, evaluated separately for <code>Vx</code> and <code>Vy</code> piece by piece along the wall of the section.</li>
+      <li><b>Torsional shear stress:</b> open thin-walled sections (Saint-Venant), <code>J = Σ L·t³ / 3</code>, <code>τ<sub>t,max</sub> = Mz·t / J</code>.</li>
+    </ul>
+
+    <h3>Conventions</h3>
+    <ul>
+      <li>Reference system: <b>x positive to the left, y positive downward</b> (De Saint Venant's convention in structural mechanics).</li>
+      <li>Lengths in mm, forces in kN, moments in kN·m, stresses in MPa.</li>
+      <li>The torsional moment <code>Mz</code> is positive if counterclockwise.</li>
+    </ul>
+
+    <p class="warn">
+      <b>Limits of the method.</b> The shear and torsion results assume thin-walled <b>open</b> sections made of
+      contiguous rectangles. Closed sections (boxes, cells) are not handled correctly for shear, and for thick
+      pieces (e.g. a square) loaded perpendicular to their long side the shear through the thickness is neglected.
+      Overlapping rectangles are counted twice. Use the results as an educational estimate and check critical cases independently.
+    </p>
+
+    <div class="it">
+      <h3>In italiano</h3>
+      <p>
+        <b>Section Analyzer</b> è un calcolatore gratuito, a scopo didattico, per sezioni composte da rettangoli contigui:
+        area, baricentro, momenti d'inerzia e assi principali, tensioni normali da sforzo normale e flessione deviata,
+        tensioni tangenziali con il metodo approssimato di Jourawski e tensioni tangenziali da torsione per sezioni aperte
+        a parete sottile. Il calcolo avviene interamente nel browser. Sistema di riferimento: x positivo verso sinistra,
+        y positivo verso il basso.
+      </p>
+    </div>
+  </section>
+
+  <script src="plotly.min.js"></script>
+  <script src="compute.js"></script>
+  <script src="grid_snap.js"></script>
+  <script src="middle_click_pan.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
