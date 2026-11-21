@@ -286,12 +286,12 @@
           <input id="in-Mx" type="number" placeholder="Mx [kN·m]">
           <input id="in-My" type="number" placeholder="My [kN·m]">
           <input id="in-N" type="number" placeholder="N [kN]">
-          <input id="in-Vx" type="number" placeholder="Vx [kN]">
-          <input id="in-Vy" type="number" placeholder="Vy [kN]">
+          <input id="in-Vx" type="number" placeholder="Tx [kN]">
+          <input id="in-Vy" type="number" placeholder="Ty [kN]">
           <input id="in-T" type="number" placeholder="Mz [kN·m]">
         </div>
         <p class="hint small">
-          Shear stress is evaluated separately for Vx and Vy components.
+          Shear stress is evaluated separately for Tx and Ty components.
           Torsional shear stress can be evaluated only for open cross-sections.
           The torsional moment Mz is positive if counterclockwise.
         </p>
@@ -344,8 +344,8 @@
     <ul>
       <li><b>Geometric properties:</b> area, centroid, second moments of area <code>Ix</code>, <code>Iy</code>, mean inertia and principal axes.</li>
       <li><b>Normal stress:</b> <code>σ</code> from axial force <code>N</code> and biaxial bending <code>Mx</code>, <code>My</code>, with the maximum tension and compression and where they occur.</li>
-      <li><b>Shear stress:</b> approximate Jourawski method, <code>τ = V·Q / (I·t)</code>, evaluated separately for <code>Vx</code> and <code>Vy</code> piece by piece along the wall of the section.</li>
-      <li><b>Torsional shear stress:</b> open thin-walled sections (Saint-Venant), <code>J = Σ L·t³ / 3</code>, <code>τ<sub>t,max</sub> = Mz·t / J</code>.</li>
+      <li><b>Shear stress:</b> approximate Jourawski method, <code>τ = T·S / (I·b)</code> (T = shear force, S = static moment, b = wall thickness), evaluated separately for <code>Tx</code> and <code>Ty</code> piece by piece along the wall of the section.</li>
+      <li><b>Torsional shear stress:</b> open thin-walled sections (Saint-Venant), <code>J = Σ L·b³ / 3</code>, <code>τ<sub>t,max</sub> = Mz·b / J</code>.</li>
     </ul>
 
     <h3>Conventions</h3>

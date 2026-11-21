@@ -264,7 +264,7 @@
       lines.push(
         "",
         "---- Shear stresses (approximate Jourawski method) ----",
-        `Vx = ${f4(Vx_kN)} kN, Vy = ${f4(Vy_kN)} kN`,
+        `Tx = ${f4(Vx_kN)} kN, Ty = ${f4(Vy_kN)} kN`,
         `Tau max (approx, numeric) = ${f4(sh.tauMax)} MPa  at (x=${f3(sh.locMax[0])}, y=${f3(sh.locMax[1])}) mm`,
       );
     }

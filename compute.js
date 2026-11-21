@@ -1136,7 +1136,7 @@
           type: "scatter", x: hoverX.slice(i0, i1), y: hoverY.slice(i0, i1), mode: "lines",
           line: { color: lineColor, width: 0.5 },
           customdata: tau.slice(i0, i1),
-          hovertemplate: `${direction}<br>τ=%{customdata:.2f} MPa<extra></extra>`,
+          hovertemplate: `${direction.replace("V", "T")}<br>τ=%{customdata:.2f} MPa<extra></extra>`,
           showlegend: false,
         });
       }
@@ -1153,7 +1153,7 @@
     }
 
     const globalAnnotation = tauMax > 1e-9 ? [{
-      x: locMax[0], y: locMax[1], text: `${direction}: max ≈ ${tauMax.toFixed(1)} MPa`,
+      x: locMax[0], y: locMax[1], text: `${direction.replace("V", "T")}: max ≈ ${tauMax.toFixed(1)} MPa`,
       showarrow: false, font: { size: 10, color: "black" },
       bgcolor: "white", bordercolor: lineColor, borderwidth: 1,
       xanchor: "left", yanchor: "bottom", xshift: 8, yshift: 8,
